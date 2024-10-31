@@ -3,7 +3,7 @@
 # City Sprint
 
 ## Overview
-**City Sprint** is a high-speed fusion of strategy and fun. Dive into a fast-paced world where building cities, managing troops, and outpacing rivals is all in a day’s sprint!
+**City Sprint** is a high-speed civilization building pvp game. Dive into a fast-paced world where building cities, managing troops, and outpacing rivals is all in a day’s sprint.
 </div>
 
 ## Features
