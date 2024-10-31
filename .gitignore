@@ -1,0 +1,9 @@
+/out
+bin/
+build/
+log/
+./log/
+.vs/
+.idea/
+CMakeSettings.json
+
