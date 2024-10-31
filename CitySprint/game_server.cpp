@@ -115,7 +115,7 @@ std::string serializeGameStateToString() {
 
 // Function to send game state updates to all clients
 void sendGameStateDeltasToClients() {
-    if (gameState.changedTiles.empty()) {
+    /*if (gameState.changedTiles.empty()) {
         // If no changes, send at least a keep-alive ping (optional)
         log("No changes detected. Sending keep-alive ping.");
         std::string frame = encodeWebSocketFrame("ping");
@@ -126,7 +126,7 @@ void sendGameStateDeltasToClients() {
             }
         }
         return;
-    }
+    }*/
     std::string gameStateStr = serializeGameStateToString();
     log("Game state being sent: " + gameStateStr);
     std::string frame = encodeWebSocketFrame(gameStateStr);
@@ -137,7 +137,7 @@ void sendGameStateDeltasToClients() {
             log("Failed to send to client: " + std::to_string(WSAGetLastError()));
         }
     }
-    gameState.changedTiles.clear();
+    //gameState.changedTiles.clear();
 }
 
 std::string decodeWebSocketFrame(const std::string& frame) {
