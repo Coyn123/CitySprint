@@ -35,9 +35,6 @@ function changeGridPoint(x, y, color) {
 }
 
 function handleServerMessage(event) {
-    //console.log("Handling server message. Event: ", event);
-    //console.log("Event Data Type: ", typeof event.data);
-    //console.log("Event Data Length: ", event.data.length);
     console.log("Event Data (Raw): ", event.data);
 
     const updates = event.data.split(";");
@@ -68,7 +65,7 @@ function handleServerMessage(event) {
 // Initial setup to clear the canvas and fill with an initial color if needed
 function initializeGameMatrix() {
     context.clearRect(0, 0, canvas.width, canvas.height);
-    context.fillStyle = '#000'; // Initial background color
+    context.fillStyle = 'white'; // Initial background color
     context.fillRect(0, 0, canvas.width, canvas.height);
 }
 

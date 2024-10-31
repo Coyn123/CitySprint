@@ -45,7 +45,7 @@ void log(const std::string& message) {
 void initializeGameState() {
     int rows = BOARD_HEIGHT / TILE_SIZE;
     int cols = BOARD_WIDTH / TILE_SIZE;
-    gameState.board.resize(rows, std::vector<std::string>(cols, "black"));
+    gameState.board.resize(rows, std::vector<std::string>(cols, "white"));
 
     for (int y = 0; y < rows; ++y) {
         for (int x = 0; x < cols; ++x) {
@@ -128,9 +128,9 @@ void sendGameStateDeltasToClients() {
         return;
     }*/
     std::string gameStateStr = serializeGameStateToString();
-    log("Game state being sent: " + gameStateStr);
+    //log("Game state being sent: " + gameStateStr);
     std::string frame = encodeWebSocketFrame(gameStateStr);
-    log("Sending game state deltas to clients: " + gameStateStr);
+    //log("Sending game state deltas to clients: " + gameStateStr);
     for (const auto& client : clients) {
         int result = send(client.first, frame.c_str(), static_cast<int>(frame.size()), 0);
         if (result == SOCKET_ERROR) {
