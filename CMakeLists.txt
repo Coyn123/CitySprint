@@ -10,6 +10,8 @@ if (POLICY CMP0141)
 endif()
 
 project ("CitySprint")
+project ("CitySprint_Server")
 
 # Include sub-projects.
 add_subdirectory ("CitySprint")
+add_subdirectory ("CitySprintServer")

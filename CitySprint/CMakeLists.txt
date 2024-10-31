@@ -11,5 +11,5 @@ include_directories(${CMAKE_SOURCE_DIR}/include)
 add_executable(WebSocketGame "game_server.cpp")
 
 # Link libraries
-target_link_libraries(WebSocketGame "C:/Program Files/OpenSSL-Win64/lib/VC/x64/MDd/libssl.lib" "C:/Program Files/OpenSSL-Win64/lib/VC/x64/MDd/libcrypto.lib")
+target_link_libraries(WebSocketGame ${CMAKE_SOURCE_DIR}/lib/libssl.lib ${CMAKE_SOURCE_DIR}/lib/libcrypto.lib)
 target_link_libraries(WebSocketGame ws2_32)
