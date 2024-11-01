@@ -41,6 +41,16 @@ void log(const std::string& message) {
     logFile << message << std::endl;
 }
 
+void insertSpriteCharacter(int coords[], int size) {
+    // assume the coordinates are the middle of
+    // our character to create, size is the diameter  of the character
+    for (int i = coords[0]; i > 0; i--) {
+        for (int j = coords[1]; j > 0; j--) {
+
+       }
+    }
+}
+
 // Initialize game board with empty tiles
 void initializeGameState() {
     int rows = BOARD_HEIGHT / TILE_SIZE;
@@ -52,6 +62,7 @@ void initializeGameState() {
             Tile tile;
             tile.x = x;
             tile.y = y;
+            /*
             if (y < rows / 2 - 1) {
                 tile.color = "blue";  // Top half blue
             }
@@ -61,6 +72,8 @@ void initializeGameState() {
             else {
                 tile.color = "green";  // Middle green line
             }
+            */
+            tile.color = "#d3c3c0";
             gameState.board[y][x] = tile.color;
             gameState.changedTiles.push_back(tile);
         }
@@ -115,18 +128,18 @@ std::string serializeGameStateToString() {
 
 // Function to send game state updates to all clients
 void sendGameStateDeltasToClients() {
-    /*if (gameState.changedTiles.empty()) {
+    if (gameState.changedTiles.empty()) {
         // If no changes, send at least a keep-alive ping (optional)
-        log("No changes detected. Sending keep-alive ping.");
-        std::string frame = encodeWebSocketFrame("ping");
-        for (const auto& client : clients) {
-            int result = send(client.first, frame.c_str(), static_cast<int>(frame.size()), 0);
-            if (result == SOCKET_ERROR) {
-                log("Failed to send keep-alive ping to client: " + std::to_string(WSAGetLastError()));
-            }
-        }
+        //log("No changes detected. Sending keep-alive ping.");
+        //std::string frame = encodeWebSocketFrame("ping");
+        //for (const auto& client : clients) {
+        //    int result = send(client.first, frame.c_str(), static_cast<int>(frame.size()), 0);
+        //    if (result == SOCKET_ERROR) {
+        //        log("Failed to send keep-alive ping to client: " + std::to_string(WSAGetLastError()));
+        //    }
+        //}
         return;
-    }*/
+    }
     std::string gameStateStr = serializeGameStateToString();
     //log("Game state being sent: " + gameStateStr);
     std::string frame = encodeWebSocketFrame(gameStateStr);
@@ -183,6 +196,9 @@ void handleClientMessage(SOCKET clientSocket, const std::string& message) {
 
     if (iss >> x >> delimiter >> y >> delimiter >> color) {
         std::lock_guard<std::mutex> lock(gameState.stateMutex);
+        if (x == 1000 && y == 1000) {
+            initializeGameState();
+        }
         if (x >= 0 && x < BOARD_WIDTH / TILE_SIZE && y >= 0 && y < BOARD_HEIGHT / TILE_SIZE) {
             gameState.board[y][x] = color;
             gameState.changedTiles.push_back({ x, y, color });
@@ -203,7 +219,7 @@ void handleClient(SOCKET clientSocket) {
     int bytesReceived;
     while ((bytesReceived = recv(clientSocket, buffer, sizeof(buffer), 0)) > 0) {
         std::string message(buffer, bytesReceived);
-        log("Received message from client: " + message);
+        //log("Received message from client: " + message);
         std::string decodedMessage = decodeWebSocketFrame(message);  // Decoding WebSocket frame
         log("Decoded message: " + decodedMessage);
         handleClientMessage(clientSocket, decodedMessage);

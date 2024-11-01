@@ -40,11 +40,21 @@ function goFullScreen() {
         canvas.mozRequestFullScreen();
 }
 
+function clearBoard() {
+    changeGridPoint(1000, 1000, "white"); 
+}
+
 fullscrBtn.addEventListener("click", goFullScreen);
 
-canvas.addEventListener("click", () => {
+canvas.addEventListener("click", (e) => {
     const rect = canvas.getBoundingClientRect();
-    //const x 
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    const col = Math.floor(x / 5);
+    const row = Math.floor(y / 5);
+
+    changeGridPoint(col, row, "black");
 });
 
 function changeGridPoint(x, y, color) {
@@ -55,7 +65,9 @@ function changeGridPoint(x, y, color) {
 
 function handleServerMessage(event) {
     console.log("Event Data (Raw): ", event.data);
-
+    if (!event.data) {
+        return;
+    }
     const updates = event.data.split(";");
     updates.forEach(update => {
         if (update.trim()) { // Ensure no empty segments
