@@ -73,7 +73,7 @@ void initializeGameState() {
                 tile.color = "green";  // Middle green line
             }
             */
-            tile.color = "#d3c3c0";
+            tile.color = "#ccffcc";
             gameState.board[y][x] = tile.color;
             gameState.changedTiles.push_back(tile);
         }
@@ -119,10 +119,18 @@ std::string encodeWebSocketFrame(const std::string& message) {
 // Function to serialize the game state into a simple string format
 std::string serializeGameStateToString() {
     std::string result;
-    for (const auto& tile : gameState.changedTiles) {
-        result += std::to_string(tile.x) + "," + std::to_string(tile.y) + "," + tile.color + ";";
+    if (gameState.changedTiles.empty()) {
+		for (int y = 0; y < BOARD_HEIGHT/TILE_SIZE; y++) {
+		    for (int x = 0; x < BOARD_WIDTH/TILE_SIZE; x++) {
+		        result += std::to_string(x) + "," + std::to_string(y) + "," + gameState.board[y][x] + ";";
+		    }
+		}
+    } else {
+		for (const auto& tile : gameState.changedTiles) {
+			result += std::to_string(tile.x) + "," + std::to_string(tile.y) + "," + tile.color + ";";
+		}
     }
-    //log("Serialized game state: " + result);
+    log("Serialized game state: " + result);
     return result;
 }
 
@@ -150,7 +158,7 @@ void sendGameStateDeltasToClients() {
             log("Failed to send to client: " + std::to_string(WSAGetLastError()));
         }
     }
-    //gameState.changedTiles.clear();
+    gameState.changedTiles.clear();
 }
 
 std::string decodeWebSocketFrame(const std::string& frame) {

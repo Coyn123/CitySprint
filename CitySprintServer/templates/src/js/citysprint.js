@@ -5,7 +5,8 @@ let gameMatrix = []; // Initialize the game matrix
 
 const fullscrBtn = document.getElementById('fullscreenBtn');
 
-const ws = new WebSocket("ws://localhost:9001");
+const ws = new WebSocket("ws://localhost:9001"); // For Development
+// const ws = new WebSocket("ws://<server_ip>:9001"); // For Production
 
 console.log("WS was created");
 
@@ -43,8 +44,6 @@ function goFullScreen() {
 function clearBoard() {
     changeGridPoint(1000, 1000, "white"); 
 }
-
-fullscrBtn.addEventListener("click", goFullScreen);
 
 canvas.addEventListener("click", (e) => {
     const rect = canvas.getBoundingClientRect();
