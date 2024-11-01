@@ -8,12 +8,12 @@ set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 # Add source files
-add_executable(MyProject main.cpp server.cpp)
+add_executable(CitySprintServer main.cpp server.cpp)
 
 # Link the Winsock library (ws2_32)
 if(WIN32)
-    target_link_libraries(MyProject PRIVATE ws2_32)
+    target_link_libraries(CitySprintServer PRIVATE ws2_32)
 endif()
 
 # Set working directory for Visual Studio
-set_property(TARGET MyProject PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+set_property(TARGET CitySprintServer PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")

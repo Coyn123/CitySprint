@@ -71,11 +71,7 @@ void initialize_mime_types() {
 // As we can see, we are storing the available routes and their pages in a string object
 void initialize_routes() {
     // Pretty simple map structure that stores each of the existing routes for the web pages
-    get_routes["/"] = [](const std::string&) { return handle_get_request("/index.html"); };
-    get_routes["/gol"] = [](const std::string&) { return handle_get_request("/game_of_life.html"); };
-    get_routes["/mandelbrot"] = [](const std::string&) { return handle_get_request("/mandelbrot.html"); };
-    get_routes["/cpp_api"] = [](const std::string&) { return handle_get_request("/test.html"); };
-    get_routes["/game"] = [](const std::string&) { return handle_get_request("/sideViewGameTest.html"); };
+    get_routes["/"] = [](const std::string&) { return handle_get_request("citysprint.html"); };
  
     // Define the two sets of POST routes that we have so far
     post_routes["/api/echo"] = [](const std::string& body) {
@@ -118,7 +114,7 @@ std::string handle_get_request(const std::string& path) {
 
     std::string file_path = path;
     if (path == "/") {
-        file_path = "index.html";
+        file_path = "citysprint.html";
     }
 
     auto route = get_routes.find(file_path);

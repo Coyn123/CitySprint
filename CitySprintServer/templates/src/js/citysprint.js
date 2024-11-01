@@ -1,7 +1,9 @@
 const canvas = document.getElementById('gameCanvas');
 const context = canvas.getContext('2d');
-const tileSize = 10; // Update the tileSize to match server
+const tileSize = 5; // Update the tileSize to match server
 let gameMatrix = []; // Initialize the game matrix
+
+const fullscrBtn = document.getElementById('fullscreenBtn');
 
 const ws = new WebSocket("ws://localhost:9001");
 
@@ -27,6 +29,23 @@ ws.onclose = function (event) {
 ws.onerror = function (event) {
     console.error("WebSocket error: ", event);
 };
+
+function goFullScreen() {
+    var canvas = document.getElementById("gameCanvas");
+    if (canvas.requestFullScreen)
+        canvas.requestFullScreen();
+    else if (canvas.webkitRequestFullScreen)
+        canvas.webkitRequestFullScreen();
+    else if (canvas.mozRequestFullScreen)
+        canvas.mozRequestFullScreen();
+}
+
+fullscrBtn.addEventListener("click", goFullScreen);
+
+canvas.addEventListener("click", () => {
+    const rect = canvas.getBoundingClientRect();
+    //const x 
+});
 
 function changeGridPoint(x, y, color) {
     const message = `${x},${y},${color}`;
@@ -65,7 +84,7 @@ function handleServerMessage(event) {
 // Initial setup to clear the canvas and fill with an initial color if needed
 function initializeGameMatrix() {
     context.clearRect(0, 0, canvas.width, canvas.height);
-    context.fillStyle = 'white'; // Initial background color
+    context.fillStyle = '#ffff'; // Initial background color
     context.fillRect(0, 0, canvas.width, canvas.height);
 }
 

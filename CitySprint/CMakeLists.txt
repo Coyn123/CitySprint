@@ -8,8 +8,8 @@ set(CMAKE_CXX_STANDARD 17)
 include_directories(${CMAKE_SOURCE_DIR}/include)
 
 #Create our executable
-add_executable(WebSocketGame "game_server.cpp")
+add_executable(CitySprint "game_server.cpp")
 
 # Link libraries
-target_link_libraries(WebSocketGame ${CMAKE_SOURCE_DIR}/lib/libssl.lib ${CMAKE_SOURCE_DIR}/lib/libcrypto.lib)
-target_link_libraries(WebSocketGame ws2_32)
+target_link_libraries(CitySprint ${CMAKE_SOURCE_DIR}/lib/libssl.lib ${CMAKE_SOURCE_DIR}/lib/libcrypto.lib)
+target_link_libraries(CitySprint ws2_32)

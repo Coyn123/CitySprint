@@ -16,7 +16,7 @@
 // Constants
 const int BOARD_WIDTH = 800;
 const int BOARD_HEIGHT = 600;
-const int TILE_SIZE = 10;
+const int TILE_SIZE = 5;
 
 // Structure to represent a tile
 struct Tile {
@@ -67,6 +67,7 @@ void initializeGameState() {
     }
     log("Game state initialized with " + std::to_string(rows) + " rows and " + std::to_string(cols) + " columns.");
 }
+
 void changeGridPoint(int x, int y, const std::string& color) {
     std::lock_guard<std::mutex> lock(gameState.stateMutex);
 
@@ -79,7 +80,6 @@ void changeGridPoint(int x, int y, const std::string& color) {
         log("Invalid grid point (" + std::to_string(x) + ", " + std::to_string(y) + "). No changes made.");
     }
 }
-
 
 // Function to encode WebSocket frames
 std::string encodeWebSocketFrame(const std::string& message) {
