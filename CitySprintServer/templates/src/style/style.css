@@ -2,7 +2,8 @@
 	text-align: center;
 }
 
-body {
+html, body {
+    height: 100%;
 	font-family: Arial, sans-serif;
 	margin: 0;
 	padding: 0;
@@ -55,4 +56,17 @@ body {
     background-color: #4b5563;
     transform: scale(1.05);
   }
+
+canvas {
+    margin-top: 50px;
+    height: 600px;
+    width: 800px;
+}
+
+.canvas-wrapper {
+    display: flex;
+    justify-content: center;
+    alight-items: center;
+    height: 75%;
+}
   

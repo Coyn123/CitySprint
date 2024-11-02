@@ -12,7 +12,7 @@ console.log("WS was created");
 
 ws.onopen = function (event) {
     console.log("WebSocket connection opened.");
-    ws.send("Hello from client");
+    //ws.send("Hello from client");
 };
 
 ws.onmessage = function (event) {
