@@ -1,3 +1,4 @@
+.DS*
 /out
 bin/
 build/
