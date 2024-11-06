@@ -14,4 +14,4 @@ project ("CitySprint_Server")
 
 # Include sub-projects.
 add_subdirectory ("CitySprint")
-add_subdirectory ("CitySprintServer")
+add_subdirectory ("CitySprintHTTPServer")
