@@ -1,6 +1,6 @@
 const canvas = document.getElementById('gameCanvas');
 const context = canvas.getContext('2d');
-const tileSize = 5; // Update the tileSize to match server
+const tileSize = 2; // Update the tileSize to match server
 let gameMatrix = []; // Initialize the game matrix
 
 const fullscrBtn = document.getElementById('fullscreenBtn');
@@ -50,10 +50,10 @@ canvas.addEventListener("click", (e) => {
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    const col = Math.floor(x / 5);
-    const row = Math.floor(y / 5);
+    const col = Math.floor(x / tileSize);
+    const row = Math.floor(y / tileSize);
 
-    changeGridPoint(col, row, "black");
+    changeGridPoint(col, row, "white");
 });
 
 function changeGridPoint(x, y, color) {

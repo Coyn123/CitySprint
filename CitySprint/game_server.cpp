@@ -16,12 +16,12 @@
 // Constants
 const int BOARD_WIDTH = 800;
 const int BOARD_HEIGHT = 600;
-const int TILE_SIZE = 5;
+const int TILE_SIZE = 2;
 
 // Structure to represent a tile
 struct Tile {
-    int x;
-    int y;
+    int x{};
+    int y{};
     std::string color;
 };
 
@@ -30,6 +30,45 @@ struct GameState {
     std::vector<std::vector<std::string>> board; // 2D board representing tile colors
     std::vector<Tile> changedTiles; // List of changed tiles
     std::mutex stateMutex;
+};
+
+struct Troop {
+    // Basic troop attributes
+    int attack{};
+    int defense{};
+    int movement{};
+    int attackDistance{};
+    int cost{};
+
+    // Troops also have a cost to maintain
+    int foodCost{};
+};
+
+struct Building {
+    // Each building can be attacked and will attack withing a melee attack radius 
+    int attack{};
+    int defense{};
+    
+    // Buildings are either coin or food production, so if food == 0 -> coins
+    int food{};
+    
+    // I think this is it? 
+};
+
+struct City {
+    // Basic city attributes
+    int defense{};
+    int attack{};
+    
+    // Store our cities troops and buildings for those troops
+    Troop troops[3];
+    Building buildings[3];
+};
+
+struct PlayerState {
+    // Player attributes
+    int coins{};
+    City cities[2]; 
 };
 
 GameState gameState;
@@ -41,7 +80,7 @@ void log(const std::string& message) {
     logFile << message << std::endl;
 }
 
-void insertSpriteCharacter(int coords[], int size) {
+void insertCharacter(int coords[], int size) {
     // assume the coordinates are the middle of
     // our character to create, size is the diameter  of the character
     for (int i = coords[0]; i > 0; i--) {
@@ -62,7 +101,7 @@ void initializeGameState() {
             Tile tile;
             tile.x = x;
             tile.y = y;
-            tile.color = "#ccffcc";
+            tile.color = "black";
             
             gameState.board[y][x] = tile.color;
             gameState.changedTiles.push_back(tile);
@@ -77,11 +116,29 @@ void changeGridPoint(int x, int y, const std::string& color) {
     if (x >= 0 && x < BOARD_WIDTH / TILE_SIZE && y >= 0 && y < BOARD_HEIGHT / TILE_SIZE) {
         gameState.board[y][x] = color;
         gameState.changedTiles.push_back({ x, y, color });
-        log("Changed tile at (" + std::to_string(x) + ", " + std::to_string(y) + ") to color " + color);
+        //log("Changed tile at (" + std::to_string(x) + ", " + std::to_string(y) + ") to color " + color);
     }
     else {
         log("Invalid grid point (" + std::to_string(x) + ", " + std::to_string(y) + "). No changes made.");
     }
+}
+
+// Function to serialize the game state into a simple string format
+std::string serializeGameStateToString() {
+    std::string result;
+    if (gameState.changedTiles.empty()) {
+		for (int y = 0; y < BOARD_HEIGHT/TILE_SIZE; y++) {
+		    for (int x = 0; x < BOARD_WIDTH/TILE_SIZE; x++) {
+		        result += std::to_string(x) + "," + std::to_string(y) + "," + gameState.board[y][x] + ";";
+		    }
+		}
+    } else {
+		for (const auto& tile : gameState.changedTiles) {
+			result += std::to_string(tile.x) + "," + std::to_string(tile.y) + "," + tile.color + ";";
+		}
+    }
+    //log("Serialized game state: " + result);
+    return result;
 }
 
 // Function to encode WebSocket frames
@@ -104,41 +161,6 @@ std::string encodeWebSocketFrame(const std::string& message) {
     }
     frame.append(message);
     return frame;
-}
-
-// Function to serialize the game state into a simple string format
-std::string serializeGameStateToString() {
-    std::string result;
-    if (gameState.changedTiles.empty()) {
-		for (int y = 0; y < BOARD_HEIGHT/TILE_SIZE; y++) {
-		    for (int x = 0; x < BOARD_WIDTH/TILE_SIZE; x++) {
-		        result += std::to_string(x) + "," + std::to_string(y) + "," + gameState.board[y][x] + ";";
-		    }
-		}
-    } else {
-		for (const auto& tile : gameState.changedTiles) {
-			result += std::to_string(tile.x) + "," + std::to_string(tile.y) + "," + tile.color + ";";
-		}
-    }
-    //log("Serialized game state: " + result);
-    return result;
-}
-
-// Function to send game state updates to all clients
-void sendGameStateDeltasToClients() {
-    if (gameState.changedTiles.empty()) {
-        return;
-    }
-    std::string gameStateStr = serializeGameStateToString();
-    std::string frame = encodeWebSocketFrame(gameStateStr);
-    log("Sending game state deltas to clients: " + gameStateStr);
-    for (const auto& client : clients) {
-        int result = send(client.first, frame.c_str(), static_cast<int>(frame.size()), 0);
-        if (result == SOCKET_ERROR) {
-            log("Failed to send to client: " + std::to_string(WSAGetLastError()));
-        }
-    }
-    gameState.changedTiles.clear();
 }
 
 std::string decodeWebSocketFrame(const std::string& frame) {
@@ -174,52 +196,6 @@ std::string decodeWebSocketFrame(const std::string& frame) {
     return decoded;
 }
 
-// Function to handle messages from a client
-void handleClientMessage(SOCKET clientSocket, const std::string& message) {
-    log("Handling client message: " + message);
-    std::istringstream iss(message);
-    int x, y;
-    std::string color;
-    char delimiter;
-
-    if (iss >> x >> delimiter >> y >> delimiter >> color) {
-        std::lock_guard<std::mutex> lock(gameState.stateMutex);
-        if (x == 1000 && y == 1000) {
-            initializeGameState();
-        }
-        if (x >= 0 && x < BOARD_WIDTH / TILE_SIZE && y >= 0 && y < BOARD_HEIGHT / TILE_SIZE) {
-            gameState.board[y][x] = color;
-            gameState.changedTiles.push_back({ x, y, color });
-            //log("Updated tile at (" + std::to_string(x) + ", " + std::to_string(y) + ") to color " + color);
-        }
-        else {
-            log("Invalid grid point (" + std::to_string(x) + ", " + std::to_string(y) + "). No changes made.");
-        }
-    }
-    else {
-        log("Failed to parse client message: " + message);
-    }
-}
-
-// Threaded client handling function
-void handleClient(SOCKET clientSocket) {
-    char buffer[512];
-    int bytesReceived;
-    while ((bytesReceived = recv(clientSocket, buffer, sizeof(buffer), 0)) > 0) {
-        std::string message(buffer, bytesReceived);
-        //log("Received message from client: " + message);
-        std::string decodedMessage = decodeWebSocketFrame(message);  // Decoding WebSocket frame
-        log("Decoded message: " + decodedMessage);
-        handleClientMessage(clientSocket, decodedMessage);
-    }
-    closesocket(clientSocket);
-    {
-        std::lock_guard<std::mutex> lock(gameState.stateMutex);
-        clients.erase(clientSocket);
-    }
-    log("Client disconnected.");
-}
-
 // Base64 encoding function
 std::string base64Encode(const unsigned char* input, int length) {
     static const char base64Chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -240,6 +216,78 @@ std::string generateWebSocketAcceptKey(const std::string& key) {
     unsigned char hash[SHA_DIGEST_LENGTH];
     SHA1(reinterpret_cast<const unsigned char*>(acceptKey.c_str()), acceptKey.size(), hash);
     return base64Encode(hash, SHA_DIGEST_LENGTH);
+}
+
+// Function to send game state updates to all clients
+void sendGameStateDeltasToClients() { 
+    if (gameState.changedTiles.empty()) {
+        return;
+    }
+    std::string gameStateStr = serializeGameStateToString();
+    std::string frame = encodeWebSocketFrame(gameStateStr);
+    //log("Sending game state deltas to clients: " + gameStateStr);
+    for (const auto& client : clients) {
+        int result = send(client.first, frame.c_str(), static_cast<int>(frame.size()), 0);
+        if (result == SOCKET_ERROR) {
+            log("Failed to send to client: " + std::to_string(WSAGetLastError()));
+        }
+    }
+    gameState.changedTiles.clear();
+}
+
+// Function to handle messages from a client
+void handlePlayerMessage(SOCKET clientSocket, const std::string& message) {
+    log("Handling client message: " + message);
+    std::istringstream iss(message);
+    int x, y;
+    std::string color;
+    char delimiter;
+
+    // Now that we have a decoded message.. this is where our real game 
+    // logic goes
+
+    if (iss >> x >> delimiter >> y >> delimiter >> color) {
+        std::lock_guard<std::mutex> lock(gameState.stateMutex);
+        if (x == 1000 && y == 1000) {
+            initializeGameState();
+        }
+        if (x >= 0 && x < BOARD_WIDTH / TILE_SIZE && y >= 0 && y < BOARD_HEIGHT / TILE_SIZE) {
+            gameState.board[y][x] = color;
+            gameState.changedTiles.push_back({ x, y, color });
+            //log("Updated tile at (" + std::to_string(x) + ", " + std::to_string(y) + ") to color " + color);
+        }
+        else {
+            log("Invalid grid point (" + std::to_string(x) + ", " + std::to_string(y) + "). No changes made.");
+        }
+    }
+    else {
+        log("Failed to parse client message: " + message);
+    }
+}
+
+thread_local PlayerState player;
+
+// Threaded client handling function
+void gameLogic(SOCKET clientSocket) {
+    char buffer[512];
+    int bytesReceived;
+
+    // This is where we initialize the player for their instance of the game 
+    player.coins = 100;   
+    std::cout << "Player coins: :" << std::to_string(player.coins) << std::endl;
+    
+    while ((bytesReceived = recv(clientSocket, buffer, sizeof(buffer), 0)) > 0) {
+        std::string message(buffer, bytesReceived);
+        std::string decodedMessage = decodeWebSocketFrame(message);  // Decoding WebSocket frame
+        log("Decoded message: " + decodedMessage);
+        handlePlayerMessage(clientSocket, decodedMessage);
+    }
+    closesocket(clientSocket);
+    {
+        std::lock_guard<std::mutex> lock(gameState.stateMutex);
+        clients.erase(clientSocket);
+    }
+    log("Client disconnected.");
 }
 
 // Handle WebSocket handshake
@@ -281,7 +329,7 @@ void handleWebSocketHandshake(SOCKET clientSocket, const std::string& request) {
 }
 
 // Accept new client connections
-void acceptConnections(SOCKET serverSocket) {
+void acceptPlayer(SOCKET serverSocket) {
     sockaddr_in clientAddr;
     int clientAddrSize = sizeof(clientAddr);
 
@@ -304,7 +352,7 @@ void acceptConnections(SOCKET serverSocket) {
         if (bytesReceived > 0) {
             std::string request(buffer, bytesReceived);
             handleWebSocketHandshake(clientSocket, request);
-            std::thread(handleClient, clientSocket).detach();
+            std::thread(gameLogic, clientSocket).detach();
         }
         else {
             log("Failed to receive handshake request: " + std::to_string(WSAGetLastError()));
@@ -313,13 +361,8 @@ void acceptConnections(SOCKET serverSocket) {
 }
 
 // Game loop to handle continuous game updates
-void gameLoop() {
+void boardLoop() {
     while (true) {
-        {
-            std::lock_guard<std::mutex> guard(gameState.stateMutex);
-            // Apply game logic and update the global game state
-            // Ensure no game logic here is preventing updates
-        }
         sendGameStateDeltasToClients();
         std::this_thread::sleep_for(std::chrono::milliseconds(16)); // Roughly 60fps
     }
@@ -354,8 +397,8 @@ int main() {
     log("Listening on port 9001.");
     initializeGameState();
 
-    std::thread acceptThread(acceptConnections, serverSocket);
-    gameLoop(); // Keep main thread running game loop
+    std::thread acceptThread(acceptPlayer, serverSocket);
+    boardLoop(); // Keep main thread running game loop
 
     acceptThread.join(); // Ensure accept thread completes before exiting
     closesocket(serverSocket);
