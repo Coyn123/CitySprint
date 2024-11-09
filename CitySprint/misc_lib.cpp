@@ -1,24 +1,11 @@
-#include <winsock2.h>
-#include <windows.h>
 #include <iostream>
-#include <vector>
-#include <map>
 #include <string>
-#include <thread>
-#include <mutex>
-#include <sstream>
-#include <iomanip>
 #include <fstream>
 #include <openssl/sha.h>
 
+#include "misc_lib.h"
+
 #pragma comment(lib, "ws2_32.lib")
-
-std::ofstream logFile("./log/log.txt", std::ios::out | std::ios::app);
-
-void log(const std::string& message) {
-	std::cout << message << std::endl;
-	logFile << message << std::endl;
-}
 
 // Function to encode WebSocket frames
 std::string encodeWebSocketFrame(const std::string& message) {
