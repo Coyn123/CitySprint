@@ -83,7 +83,7 @@ void changeGridPoint(int x, int y, const std::string& color) {
         log("Invalid grid point (" + std::to_string(x) + ", " + std::to_string(y) + "). No changes made.");
     }
 }
-
+/*
 // Function to encode WebSocket frames
 std::string encodeWebSocketFrame(const std::string& message) {
     std::string frame;
@@ -105,6 +105,63 @@ std::string encodeWebSocketFrame(const std::string& message) {
     frame.append(message);
     return frame;
 }
+
+// Function to decode WebSocket frames
+std::string decodeWebSocketFrame(const std::string& frame) {
+    size_t payloadStart = 2;
+    size_t payloadLength = frame[1] & 0x7F;
+
+    if (payloadLength == 126) {
+        payloadStart = 4;
+        payloadLength = (frame[2] << 8) | frame[3];
+    }
+    else if (payloadLength == 127) {
+        payloadStart = 10;
+        payloadLength = 0;
+        for (int i = 0; i < 8; i++) {
+            payloadLength |= (static_cast<size_t>(frame[2 + i]) << (56 - 8 * i));
+        }
+    }
+
+    std::string decoded;
+    if (frame[1] & 0x80) { // Masked
+        char masks[4] = { frame[payloadStart], frame[payloadStart + 1], frame[payloadStart + 2], frame[payloadStart + 3] };
+        size_t i = payloadStart + 4;
+        size_t j = 0;
+        while (j < payloadLength) {
+            decoded.push_back(frame[i] ^ masks[j % 4]);
+            i++;
+            j++;
+        }
+    }
+    else {
+        decoded = frame.substr(payloadStart, payloadLength);
+    }
+    return decoded;
+}
+
+// Base64 encoding function
+std::string base64Encode(const unsigned char* input, int length) {
+    static const char base64Chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    std::string encoded;
+    for (int i = 0; i < length; i += 3) {
+        int val = (input[i] << 16) + (i + 1 < length ? (input[i + 1] << 8) : 0) + (i + 2 < length ? input[i + 2] : 0);
+        encoded.push_back(base64Chars[(val >> 18) & 0x3F]);
+        encoded.push_back(base64Chars[(val >> 12) & 0x3F]);
+        encoded.push_back(i + 1 < length ? base64Chars[(val >> 6) & 0x3F] : '=');
+        encoded.push_back(i + 2 < length ? base64Chars[val & 0x3F] : '=');
+    }
+    return encoded;
+}
+
+// Generate WebSocket accept key
+std::string generateWebSocketAcceptKey(const std::string& key) {
+    std::string acceptKey = key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+    unsigned char hash[SHA_DIGEST_LENGTH];
+    SHA1(reinterpret_cast<const unsigned char*>(acceptKey.c_str()), acceptKey.size(), hash);
+    return base64Encode(hash, SHA_DIGEST_LENGTH);
+}
+*/
 
 // Function to serialize the game state into a simple string format
 std::string serializeGameStateToString() {
@@ -139,39 +196,6 @@ void sendGameStateDeltasToClients() {
         }
     }
     gameState.changedTiles.clear();
-}
-
-std::string decodeWebSocketFrame(const std::string& frame) {
-    size_t payloadStart = 2;
-    size_t payloadLength = frame[1] & 0x7F;
-
-    if (payloadLength == 126) {
-        payloadStart = 4;
-        payloadLength = (frame[2] << 8) | frame[3];
-    }
-    else if (payloadLength == 127) {
-        payloadStart = 10;
-        payloadLength = 0;
-        for (int i = 0; i < 8; i++) {
-            payloadLength |= (static_cast<size_t>(frame[2 + i]) << (56 - 8 * i));
-        }
-    }
-
-    std::string decoded;
-    if (frame[1] & 0x80) { // Masked
-        char masks[4] = { frame[payloadStart], frame[payloadStart + 1], frame[payloadStart + 2], frame[payloadStart + 3] };
-        size_t i = payloadStart + 4;
-        size_t j = 0;
-        while (j < payloadLength) {
-            decoded.push_back(frame[i] ^ masks[j % 4]);
-            i++;
-            j++;
-        }
-    }
-    else {
-        decoded = frame.substr(payloadStart, payloadLength);
-    }
-    return decoded;
 }
 
 // Function to handle messages from a client
@@ -218,28 +242,6 @@ void handleClient(SOCKET clientSocket) {
         clients.erase(clientSocket);
     }
     log("Client disconnected.");
-}
-
-// Base64 encoding function
-std::string base64Encode(const unsigned char* input, int length) {
-    static const char base64Chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    std::string encoded;
-    for (int i = 0; i < length; i += 3) {
-        int val = (input[i] << 16) + (i + 1 < length ? (input[i + 1] << 8) : 0) + (i + 2 < length ? input[i + 2] : 0);
-        encoded.push_back(base64Chars[(val >> 18) & 0x3F]);
-        encoded.push_back(base64Chars[(val >> 12) & 0x3F]);
-        encoded.push_back(i + 1 < length ? base64Chars[(val >> 6) & 0x3F] : '=');
-        encoded.push_back(i + 2 < length ? base64Chars[val & 0x3F] : '=');
-    }
-    return encoded;
-}
-
-// Generate WebSocket accept key
-std::string generateWebSocketAcceptKey(const std::string& key) {
-    std::string acceptKey = key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
-    unsigned char hash[SHA_DIGEST_LENGTH];
-    SHA1(reinterpret_cast<const unsigned char*>(acceptKey.c_str()), acceptKey.size(), hash);
-    return base64Encode(hash, SHA_DIGEST_LENGTH);
 }
 
 // Handle WebSocket handshake
