@@ -13,6 +13,13 @@
 
 #pragma comment(lib, "ws2_32.lib")
 
+std::ofstream logFile("./log/log.txt", std::ios::out | std::ios::app);
+
+void log(const std::string& message) {
+	std::cout << message << std::endl;
+	logFile << message << std::endl;
+}
+
 // Function to encode WebSocket frames
 std::string encodeWebSocketFrame(const std::string& message) {
     std::string frame;

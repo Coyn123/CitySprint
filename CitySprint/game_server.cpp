@@ -34,56 +34,14 @@ struct GameState {
 
 GameState gameState;
 std::map<SOCKET, sockaddr_in> clients;
-std::ofstream logFile("./log/log.txt", std::ios::out | std::ios::app);
+//std::ofstream logFile("./log/log.txt", std::ios::out | std::ios::app);
 
+/*
 void log(const std::string& message) {
     std::cout << message << std::endl;
     logFile << message << std::endl;
 }
 
-void insertSpriteCharacter(int coords[], int size) {
-    // assume the coordinates are the middle of
-    // our character to create, size is the diameter  of the character
-    for (int i = coords[0]; i > 0; i--) {
-        for (int j = coords[1]; j > 0; j--) {
-
-       }
-    }
-}
-
-// Initialize game board with empty tiles
-void initializeGameState() {
-    int rows = BOARD_HEIGHT / TILE_SIZE;
-    int cols = BOARD_WIDTH / TILE_SIZE;
-    gameState.board.resize(rows, std::vector<std::string>(cols, "white"));
-
-    for (int y = 0; y < rows; ++y) {
-        for (int x = 0; x < cols; ++x) {
-            Tile tile;
-            tile.x = x;
-            tile.y = y;
-            tile.color = "#ccffcc";
-            
-            gameState.board[y][x] = tile.color;
-            gameState.changedTiles.push_back(tile);
-        }
-    }
-    log("Game state initialized with " + std::to_string(rows) + " rows and " + std::to_string(cols) + " columns.");
-}
-
-void changeGridPoint(int x, int y, const std::string& color) {
-    std::lock_guard<std::mutex> lock(gameState.stateMutex);
-
-    if (x >= 0 && x < BOARD_WIDTH / TILE_SIZE && y >= 0 && y < BOARD_HEIGHT / TILE_SIZE) {
-        gameState.board[y][x] = color;
-        gameState.changedTiles.push_back({ x, y, color });
-        log("Changed tile at (" + std::to_string(x) + ", " + std::to_string(y) + ") to color " + color);
-    }
-    else {
-        log("Invalid grid point (" + std::to_string(x) + ", " + std::to_string(y) + "). No changes made.");
-    }
-}
-/*
 // Function to encode WebSocket frames
 std::string encodeWebSocketFrame(const std::string& message) {
     std::string frame;
@@ -162,6 +120,51 @@ std::string generateWebSocketAcceptKey(const std::string& key) {
     return base64Encode(hash, SHA_DIGEST_LENGTH);
 }
 */
+
+
+
+void insertSpriteCharacter(int coords[], int size) {
+    // assume the coordinates are the middle of
+    // our character to create, size is the diameter  of the character
+    for (int i = coords[0]; i > 0; i--) {
+        for (int j = coords[1]; j > 0; j--) {
+
+       }
+    }
+}
+
+// Initialize game board with empty tiles
+void initializeGameState() {
+    int rows = BOARD_HEIGHT / TILE_SIZE;
+    int cols = BOARD_WIDTH / TILE_SIZE;
+    gameState.board.resize(rows, std::vector<std::string>(cols, "white"));
+
+    for (int y = 0; y < rows; ++y) {
+        for (int x = 0; x < cols; ++x) {
+            Tile tile;
+            tile.x = x;
+            tile.y = y;
+            tile.color = "#ccffcc";
+            
+            gameState.board[y][x] = tile.color;
+            gameState.changedTiles.push_back(tile);
+        }
+    }
+    log("Game state initialized with " + std::to_string(rows) + " rows and " + std::to_string(cols) + " columns.");
+}
+
+void changeGridPoint(int x, int y, const std::string& color) {
+    std::lock_guard<std::mutex> lock(gameState.stateMutex);
+
+    if (x >= 0 && x < BOARD_WIDTH / TILE_SIZE && y >= 0 && y < BOARD_HEIGHT / TILE_SIZE) {
+        gameState.board[y][x] = color;
+        gameState.changedTiles.push_back({ x, y, color });
+        log("Changed tile at (" + std::to_string(x) + ", " + std::to_string(y) + ") to color " + color);
+    }
+    else {
+        log("Invalid grid point (" + std::to_string(x) + ", " + std::to_string(y) + "). No changes made.");
+    }
+}
 
 // Function to serialize the game state into a simple string format
 std::string serializeGameStateToString() {
