@@ -98,7 +98,7 @@ std::string get_mime_type(const std::string& path) {
 }
 
 std::string get_file_content(const std::string& path) {
-    std::string full_path = "../../../../CitySprintServer/templates/" + path;
+    std::string full_path = "../../../../CitySprintHTTPServer/templates/" + path;
     std::ifstream file(full_path, std::ios::binary);
     if (!file) {
         std::cout << "File not found: " << full_path << std::endl;
