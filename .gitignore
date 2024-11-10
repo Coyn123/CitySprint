@@ -8,4 +8,4 @@ log/
 .idea/
 *.png
 CMakeSettings.json
-
+drawings/

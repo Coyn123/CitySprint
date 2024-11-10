@@ -43,6 +43,7 @@ function goFullScreen() {
 
 function clearBoard() {
     changeGridPoint(1000, 1000, "white"); 
+    window.location.reload();
 }
 
 canvas.addEventListener("click", (e) => {
@@ -57,9 +58,10 @@ canvas.addEventListener("click", (e) => {
 });
 
 function changeGridPoint(x, y, color) {
-    const message = `${x},${y},${color}`;
+    let character = "troop";
+    const message = `${x},${y},${color},${character}`;
     ws.send(message);
-    console.log(`Sent message to change grid point (${x}, ${y}) to color ${color}`);
+    console.log(`Sent message to change grid point (${x}, ${y}) to char ${character} with color ${color}`);
 }
 
 function handleServerMessage(event) {

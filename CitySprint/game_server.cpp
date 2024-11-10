@@ -61,6 +61,7 @@ struct City {
     // Basic city attributes
     int defense{};
     int attack{};
+    std::string color;
     
     // Store our cities troops and buildings for those troops
     Troop troops[3];
@@ -68,7 +69,7 @@ struct City {
 };
 
 struct PlayerState {
-    // Player attributes
+    int phase{};
     int coins{};
     City cities[2]; 
 };
@@ -77,21 +78,14 @@ GameState gameState;
 std::map<SOCKET, sockaddr_in> clients;
 std::ofstream logFile("./log/log.txt", std::ios::out | std::ios::app);
 
+thread_local PlayerState player;
 
 void log(const std::string& message) {
     std::cout << message << std::endl;
     logFile << message << std::endl;
 }
 
-void insertCharacter(int coords[], int size) {
-    // assume the coordinates are the middle of
-    // our character to create, size is the diameter  of the character
-    for (int i = coords[0]; i > 0; i--) {
-        for (int j = coords[1]; j > 0; j--) {
 
-       }
-    }
-}
 
 // Initialize game board with empty tiles
 void initializeGameState() {
@@ -161,26 +155,78 @@ void sendGameStateDeltasToClients() {
     gameState.changedTiles.clear();
 }
 
+// When not high as fuck, create a functional version of this using lambda functions and
+// a recursive function to handle the for loop logic
+int insertCharacter(int coords[], int radius, std::string color) {
+    // assume the coordinates are the middle of
+    // our character to create, size is the diameter  of the character
+    int centerX = coords[0];
+    int centerY = coords[1];
+    int d = 3 - 2 * radius;
+    int y = radius;
+    int x = 0;
+
+    //changeGridPoint(coords[0], coords[1], color);
+    while (y >= x) {
+		changeGridPoint(centerX + x, centerY + y, color);
+		changeGridPoint(centerX - x, centerY + y, color);
+		changeGridPoint(centerX + x, centerY - y, color);
+		changeGridPoint(centerX - x, centerY - y, color);
+		changeGridPoint(centerX + y, centerY + x, color);
+		changeGridPoint(centerX - y, centerY + x, color);
+		changeGridPoint(centerX + y, centerY - x, color);
+		changeGridPoint(centerX - y, centerY - x, color);
+    
+        x++;
+        if (d > 0) {
+            y--;
+            d = d + 4 * (x - y) + 10;
+        } else {
+            d = d + 4 * x + 6;
+        }
+    }
+    return 1;
+}
+
 // Function to handle messages from a client
 void handlePlayerMessage(SOCKET clientSocket, const std::string& message) {
     log("Handling client message: " + message);
     std::istringstream iss(message);
-    int x, y;
-    std::string color;
-    char delimiter;
+    std::string segment;
+    std::vector<std::string> segments;
 
-    // Now that we have a decoded message.. this is where our real game 
-    // logic goes
+    while (std::getline(iss, segment, ',')) {
+        segments.push_back(segment);
+    }
 
-    if (iss >> x >> delimiter >> y >> delimiter >> color) {
-        std::lock_guard<std::mutex> lock(gameState.stateMutex);
+    if (segments.size() == 4) {
+        int x = std::stoi(segments[0]);
+        int y = std::stoi(segments[1]);
+        std::string color = segments[2];
+        std::string characterType = segments[3];
+
+        log("Parsed message: x = " + std::to_string(x) + ", y = " + std::to_string(y) + ", color = " + color + ", characterType = " + characterType);
+
+        int coords[2] = { x, y };
         if (x == 1000 && y == 1000) {
             initializeGameState();
         }
-        if (x >= 0 && x < BOARD_WIDTH / TILE_SIZE && y >= 0 && y < BOARD_HEIGHT / TILE_SIZE) {
-            gameState.board[y][x] = color;
-            gameState.changedTiles.push_back({ x, y, color });
-            //log("Updated tile at (" + std::to_string(x) + ", " + std::to_string(y) + ") to color " + color);
+        if (player.phase == 0) {
+            std::cout << "Player has no cities" << std::endl;
+            int cityBuilt = insertCharacter(coords, 15, "yellow");
+            player.cities[0] = { 100, 10, "yellow" };
+            player.phase = 1;
+            return;
+        }
+
+        if (player.phase != 0) {
+            // Decide what the player is trying to do now
+            if (characterType == "troop") {
+                int test = insertCharacter(coords, 3, "green");
+            } 
+            if (characterType == "building") {
+                int test = insertCharacter(coords, 5, "red");
+            }
         }
         else {
             log("Invalid grid point (" + std::to_string(x) + ", " + std::to_string(y) + "). No changes made.");
@@ -191,7 +237,44 @@ void handlePlayerMessage(SOCKET clientSocket, const std::string& message) {
     }
 }
 
-thread_local PlayerState player;
+
+
+/*
+// Function to handle messages from a client
+void handlePlayerMessage(SOCKET clientSocket, const std::string& message) {
+    log("Handling client message: " + message);
+    std::istringstream iss(message);
+    int x, y;
+    std::string characterType;
+    std::string color;
+    char delimiter;
+    
+    // Now that we have a decoded message.. this is where our real game 
+    // logic goes here for the game, each tick
+	if(iss >> x >> delimiter >> y >> delimiter >> color >> delimiter >> characterType) {
+        int coords[2] = {x,y};
+        if (x == 1000 && y == 1000) {
+            initializeGameState();
+        }
+		if (player.phase == 0) {
+			std::cout << "Player has no cities" << std::endl;
+			int cityBuilt = insertCharacter(coords, 15, "yellow");
+			player.cities[0] = {100, 10, "yellow"};
+			player.phase = 1;
+            return;
+		} 
+        
+        if (player.phase != 0) {
+            // Decide what the player is trying to do now
+            int test = insertCharacter(coords, 3, "green");
+        } else {
+			log("Invalid grid point (" + std::to_string(x) + ", " + std::to_string(y) + "). No changes made.");
+		} 
+    } else {
+		log("Failed to parse client message: " + message);
+	}
+}
+*/
 
 // Threaded client handling function
 void gameLogic(SOCKET clientSocket) {
