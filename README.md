@@ -36,7 +36,7 @@ This document outlines the coding standards and best practices for developing ou
 
 ## General Guidelines
 
-- **Consistent Formatting**: Use consistent indentation (4 spaces) and brace styles (`Allman` style for functions, `K&R` style for everything else).
+- **Consistent Formatting**: Use consistent indentation (4 spaces) and brace styles (`K&R` style for everything).
 - **Naming Conventions**: Use `camelCase` for variables and functions, and `PascalCase` for struct and class names.
 - **Comments**: Write meaningful comments to explain the purpose of the code, especially complex logic and multi-threaded sections.
 - **Error Handling**: Implement robust error handling and logging mechanisms to capture and report errors.
