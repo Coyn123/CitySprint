@@ -60,6 +60,7 @@ canvas.addEventListener("click", (e) => {
 function changeGridPoint(x, y, color) {
     let character = "troop";
     const message = `${x},${y},${color},${character}`;
+    // stinky ass
     ws.send(message);
     console.log(`Sent message to change grid point (${x}, ${y}) to char ${character} with color ${color}`);
 }
