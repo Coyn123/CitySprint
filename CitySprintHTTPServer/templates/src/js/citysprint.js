@@ -58,6 +58,7 @@ canvas.addEventListener("click", (e) => {
 });
 
 function changeGridPoint(x, y, color) {
+    // POOPY UPDATE!!s
     let character = "troop";
     const message = `${x},${y},${color},${character}`;
     // stinky ass
