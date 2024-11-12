@@ -2,7 +2,7 @@ const canvas = document.getElementById('gameCanvas');
 const context = canvas.getContext('2d');
 const tileSize = 2; // Update the tileSize to match server
 let gameMatrix = []; // Initialize the game matrix
-let selectedCharacterType = "troop";
+let selectedCharacterType = "coin";
 
 const fullscrBtn = document.getElementById('fullscreenBtn');
 
@@ -65,11 +65,10 @@ canvas.addEventListener("click", (e) => {
 
 function changeGridPoint(x, y, color) {
     // POOPY UPDATE!!s
-    let character = "troop";
-    const message = `${x},${y},${color},${character}`;
+    const message = `${x},${y},${color},${selectedCharacterType}`;
     // stinky ass
     ws.send(message);
-    console.log(`Sent message to change grid point (${x}, ${y}) to char ${character} with color ${color}`);
+    console.log(`Sent message to change grid point (${x}, ${y}) to char ${selectedCharacterType} with color ${color}`);
 }
 
 function handleServerMessage(event) {

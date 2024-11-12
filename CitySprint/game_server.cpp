@@ -35,40 +35,53 @@ struct GameState {
 };
 
 struct Troop {
+    // Location Tracker
+    std::vector<int> midpoint;
+    int size{};
+    
     // Basic troop attributes
-    int midpoint[2] = {};
-    int attack{};
     int defense{};
+    int attack{};
     int movement{};
     int attackDistance{};
     int cost{};
 
     // Troops also have a cost to maintain
     int foodCost{};
+
+    // Troops will have a designated color
+    std::string color;
 };
 
 struct Building {
+    // Location Tracker
+    std::vector<int> midpoint;    
+    int size{};
+
     // Each building can be attacked and will attack withing a melee attack radius 
-    int midpoint[2] = {};
-    int attack{};
     int defense{};
+    int attack{};
+    int cost{};
     
     // Buildings are either coin or food production, so if food == 0 -> coins
     int food{};
-    
-    // I think this is it? 
+    int coins{};   
+ 
+    std::string color;
 };
 
 struct City {
+    // Location Tracker
+    std::vector<int> midpoint; 
+
     // Basic city attributes
     int defense{};
     int attack{};
-    int midpoint[2] = {};
     std::string color;
     
     // Store our cities troops and buildings for those troops
-    Troop troops[3];
-    Building buildings[3];
+    std::vector<Troop> troops;
+    std::vector<Building> buildings;
 };
 
 struct PlayerState {
@@ -83,10 +96,15 @@ std::ofstream logFile("./log/log.txt", std::ios::out | std::ios::app);
 
 thread_local PlayerState player;
 
+std::map<std::string, Troop> troopMap;
+std::map<std::string, Building> buildingMap;
+
 void log(const std::string& message) {
     std::cout << message << std::endl;
     logFile << message << std::endl;
 }
+
+
 
 // Initialize game board with empty tiles
 void initializeGameState() {
@@ -115,8 +133,7 @@ void changeGridPoint(int x, int y, const std::string& color) {
         gameState.board[y][x] = color;
         gameState.changedTiles.push_back({ x, y, color });
         //log("Changed tile at (" + std::to_string(x) + ", " + std::to_string(y) + ") to color " + color);
-    }
-    else {
+    } else {
         log("Invalid grid point (" + std::to_string(x) + ", " + std::to_string(y) + "). No changes made.");
     }
 }
@@ -215,25 +232,40 @@ void handlePlayerMessage(SOCKET clientSocket, const std::string& message) {
         if (player.phase == 0) {
             std::cout << "Player has no cities" << std::endl;
             int cityBuilt = insertCharacter(coords, 15, "yellow");
-            player.cities[0] = { 100, 10, "yellow" };
+            player.cities[0] = { { coords[0], coords[1] }, 100, 10, "yellow"};
             player.phase = 1;
             return;
         }
+
+        std::string troopType = "Barbarian";
 
         if (player.phase != 0) {
             // Decide what the player is trying to do now
             if (characterType == "coin") {
                 int currentCoins = player.coins;
+                std::cout << "Player has : " << player.coins << " coins" << std::endl;
                 player.coins = currentCoins + 1;
-                // Create a function to send the client the updated coin count
-                // Later we can create the logic to ensure that the coins are within
-                // a city structure based on its size and midpoint
-            
+                std::cout << "Player now has: " << player.coins << " coins" << std::endl;
+                // Create a function to send the client the updated coint coun
+            } 
             if (characterType == "troop") {
-                int test = insertCharacter(coords, 3, "green");
+                if (player.coins < troopMap["Barbarian"].cost) {
+                    return;
+                }
+                int createTroop = insertCharacter(coords, troopMap[troopType].size, troopMap[troopType].color);
+                std::cout << "Player has: " << player.coins << "coins" << std::endl;
+                int currentCoins = player.coins;
+                player.coins = currentCoins - troopMap[troopType].cost;
+                std::cout << "Player has: " << player.coins << " coins left" << std::endl;
+                // For now we are assuming a barbarian is being created
+                Troop newTroop = troopMap["Barbarian"];
+                // Update the midpoint for this instance of the structure
+                newTroop.midpoint = {coords[0], coords[1]};
+                // Update our troop vector to contain this new troop
+                player.cities->troops.push_back(newTroop);
             } 
             if (characterType == "building") {
-                int test = insertCharacter(coords, 5, "red");
+                int createBuilding = insertCharacter(coords, buildingMap["coinFarm"].size, buildingMap["coinFarm"].color);
             }
         }
         else {
@@ -347,6 +379,14 @@ void boardLoop() {
 }
 
 int main() {
+    // SETUP OUR MAPS
+    // Troops
+    troopMap["Barbarian"] = { {}, 3, 100, 10, 1, 1, 25, 5, "red"};
+
+    // Buildings
+    buildingMap["coinFarm"] = { {}, 5, 100, 5, 150, {}, 5, "green"};
+
+    // NETWORK CONFIG
     WSADATA wsaData;
     SOCKET serverSocket;
     sockaddr_in serverAddr;
