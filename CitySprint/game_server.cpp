@@ -36,6 +36,7 @@ struct GameState {
 
 struct Troop {
     // Basic troop attributes
+    int midpoint[2] = {};
     int attack{};
     int defense{};
     int movement{};
@@ -48,6 +49,7 @@ struct Troop {
 
 struct Building {
     // Each building can be attacked and will attack withing a melee attack radius 
+    int midpoint[2] = {};
     int attack{};
     int defense{};
     
@@ -61,6 +63,7 @@ struct City {
     // Basic city attributes
     int defense{};
     int attack{};
+    int midpoint[2] = {};
     std::string color;
     
     // Store our cities troops and buildings for those troops
@@ -84,8 +87,6 @@ void log(const std::string& message) {
     std::cout << message << std::endl;
     logFile << message << std::endl;
 }
-
-
 
 // Initialize game board with empty tiles
 void initializeGameState() {
@@ -221,6 +222,13 @@ void handlePlayerMessage(SOCKET clientSocket, const std::string& message) {
 
         if (player.phase != 0) {
             // Decide what the player is trying to do now
+            if (characterType == "coin") {
+                int currentCoins = player.coins;
+                player.coins = currentCoins + 1;
+                // Create a function to send the client the updated coin count
+                // Later we can create the logic to ensure that the coins are within
+                // a city structure based on its size and midpoint
+            
             if (characterType == "troop") {
                 int test = insertCharacter(coords, 3, "green");
             } 
@@ -236,45 +244,6 @@ void handlePlayerMessage(SOCKET clientSocket, const std::string& message) {
         log("Failed to parse client message: " + message);
     }
 }
-
-
-
-/*
-// Function to handle messages from a client
-void handlePlayerMessage(SOCKET clientSocket, const std::string& message) {
-    log("Handling client message: " + message);
-    std::istringstream iss(message);
-    int x, y;
-    std::string characterType;
-    std::string color;
-    char delimiter;
-    
-    // Now that we have a decoded message.. this is where our real game 
-    // logic goes here for the game, each tick
-	if(iss >> x >> delimiter >> y >> delimiter >> color >> delimiter >> characterType) {
-        int coords[2] = {x,y};
-        if (x == 1000 && y == 1000) {
-            initializeGameState();
-        }
-		if (player.phase == 0) {
-			std::cout << "Player has no cities" << std::endl;
-			int cityBuilt = insertCharacter(coords, 15, "yellow");
-			player.cities[0] = {100, 10, "yellow"};
-			player.phase = 1;
-            return;
-		} 
-        
-        if (player.phase != 0) {
-            // Decide what the player is trying to do now
-            int test = insertCharacter(coords, 3, "green");
-        } else {
-			log("Invalid grid point (" + std::to_string(x) + ", " + std::to_string(y) + "). No changes made.");
-		} 
-    } else {
-		log("Failed to parse client message: " + message);
-	}
-}
-*/
 
 // Threaded client handling function
 void gameLogic(SOCKET clientSocket) {
