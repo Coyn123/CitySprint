@@ -2,6 +2,7 @@ const canvas = document.getElementById('gameCanvas');
 const context = canvas.getContext('2d');
 const tileSize = 2; // Update the tileSize to match server
 let gameMatrix = []; // Initialize the game matrix
+let selectedCharacterType = "troop";
 
 const fullscrBtn = document.getElementById('fullscreenBtn');
 
@@ -14,6 +15,11 @@ ws.onopen = function (event) {
     console.log("WebSocket connection opened.");
     //ws.send("Hello from client");
 };
+
+function setCharacterType(button) {
+    selectedCharacterType = button.textContent.toLowerCase();
+    console.log("Character type selected: ", selectedCharacterType);
+}
 
 ws.onmessage = function (event) {
     if (event.data === "ping") {
@@ -42,7 +48,7 @@ function goFullScreen() {
 }
 
 function clearBoard() {
-    changeGridPoint(1000, 1000, "white"); 
+    changeGridPoint(1000, 1000, "white", null); 
     window.location.reload();
 }
 
@@ -54,7 +60,7 @@ canvas.addEventListener("click", (e) => {
     const col = Math.floor(x / tileSize);
     const row = Math.floor(y / tileSize);
 
-    changeGridPoint(col, row, "white");
+    changeGridPoint(col, row, "white", selectedCharacterType);
 });
 
 function changeGridPoint(x, y, color) {
