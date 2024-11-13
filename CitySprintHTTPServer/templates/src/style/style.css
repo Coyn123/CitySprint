@@ -69,4 +69,21 @@ canvas {
     alight-items: center;
     height: 75%;
 }
+
+button {
+  background-color: #8B4513; /* SaddleBrown */
+  color: #FFD700; /* Gold */
+  font-family: 'Cinzel', serif;
+  border: 2px solid #DAA520; /* GoldenRod */
+  border-radius: 5px;
+  padding: 10px 20px;
+  margin: 5px;
+  cursor: pointer;
+  transition: background-color 0.3s, color 0.3s;
+}
+
+button:hover {
+  background-color: #DAA520; /* GoldenRod */
+  color: #8B4513; /* SaddleBrown */
+}
   
