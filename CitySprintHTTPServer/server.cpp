@@ -72,6 +72,7 @@ void initialize_mime_types() {
 void initialize_routes() {
     // Pretty simple map structure that stores each of the existing routes for the web pages
     get_routes["/"] = [](const std::string&) { return handle_get_request("citysprint.html"); };
+    get_routes["/new"] = [](const std::string&) { return handle_get_request("newBoard.html"); };
  
     // Define the two sets of POST routes that we have so far
     post_routes["/api/echo"] = [](const std::string& body) {

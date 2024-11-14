@@ -116,7 +116,7 @@ void initializeGameState() {
             Tile tile;
             tile.x = x;
             tile.y = y;
-            tile.color = "black";
+            tile.color = "#696969";
             
             gameState.board[y][x] = tile.color;
             gameState.changedTiles.push_back(tile);
