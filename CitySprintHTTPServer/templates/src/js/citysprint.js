@@ -76,6 +76,8 @@ function handleServerMessage(event) {
     if (!event.data) {
         return;
     }
+    const obj = JSON.parse(event.data);
+    console.log(obj);
     const updates = event.data.split(";");
     updates.forEach(update => {
         if (update.trim()) { // Ensure no empty segments

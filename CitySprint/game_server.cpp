@@ -86,6 +86,8 @@ struct City {
 };
 
 struct PlayerState {
+    SOCKET socket;
+
     int phase{};
     int coins{};
     City cities[2]; 
@@ -131,15 +133,37 @@ void changeGridPoint(int x, int y, const std::string& color) {
     if (x >= 0 && x < BOARD_WIDTH / TILE_SIZE && y >= 0 && y < BOARD_HEIGHT / TILE_SIZE) {
         gameState.board[y][x] = color;
         gameState.changedTiles.push_back({ x, y, color });
-        //log("Changed tile at (" + std::to_string(x) + ", " + std::to_string(y) + ") to color " + color);
     } else {
         log("Invalid grid point (" + std::to_string(x) + ", " + std::to_string(y) + "). No changes made.");
     }
 }
 
+std::string serializePlayerStateToString() {
+    std::string result;
+    result += "{\"player\": {\"coins\":\"";
+    result += player.coins + "\",\"troops\":\"[";
+    // Append the troops here
+    result += "]\"";
+
+    return result;
+}
+
+
+void sendPlayerStateDeltaToClient() {
+    std::string playerState = serializePlayerStateToString();
+    std::string frame = encodeWebSocketFrame(playerState);
+
+    int result = send(player.socket, frame.c_str(), static_cast<int>(frame.size()), 0);
+    if (result == SOCKET_ERROR) {
+        log("Failed to send update to client: " + std::to_string(WSAGetLastError()));
+    }
+}
+
+
 // Function to serialize the game state into a simple string format
 std::string serializeGameStateToString() {
     std::string result;
+    result += "{\"game\": { \"board\": \"";
     if (gameState.changedTiles.empty()) {
 		for (int y = 0; y < BOARD_HEIGHT/TILE_SIZE; y++) {
 		    for (int x = 0; x < BOARD_WIDTH/TILE_SIZE; x++) {
@@ -151,9 +175,11 @@ std::string serializeGameStateToString() {
 			result += std::to_string(tile.x) + "," + std::to_string(tile.y) + "," + tile.color + ";";
 		}
     }
-    //log("Serialized game state: " + result);
+    result += "\"}, \"coins\":\"";
+    result += std::to_string(player.coins) + "\"}";
     return result;
 }
+
 
 // Function to send game state updates to all clients
 void sendGameStateDeltasToClients() { 
@@ -162,7 +188,6 @@ void sendGameStateDeltasToClients() {
     }
     std::string gameStateStr = serializeGameStateToString();
     std::string frame = encodeWebSocketFrame(gameStateStr);
-    //log("Sending game state deltas to clients: " + gameStateStr);
     for (const auto& client : clients) {
         int result = send(client.first, frame.c_str(), static_cast<int>(frame.size()), 0);
         if (result == SOCKET_ERROR) {
@@ -219,6 +244,7 @@ void handlePlayerMessage(SOCKET clientSocket, const std::string& message) {
     if (segments.size() != 4) {
         return;
     }
+
 	int x = std::stoi(segments[0]);
 	int y = std::stoi(segments[1]);
 	std::string color = segments[2];
@@ -227,9 +253,11 @@ void handlePlayerMessage(SOCKET clientSocket, const std::string& message) {
 	log("Parsed message: x = " + std::to_string(x) + ", y = " + std::to_string(y) + ", color = " + color + ", characterType = " + characterType);
 
 	int coords[2] = { x, y };
+
 	if (x == 1000 && y == 1000) {
 		initializeGameState();
 	}
+
 	if (player.phase == 0) {
 		std::cout << "Player has no cities" << std::endl;
 		int cityBuilt = insertCharacter(coords, 15, "yellow");
@@ -261,7 +289,7 @@ void handlePlayerMessage(SOCKET clientSocket, const std::string& message) {
 		Troop newTroop = troopMap["Barbarian"];
 		newTroop.midpoint = {coords[0], coords[1]};
 		player.cities->troops.push_back(newTroop);
-	    return;
+	    //return;
     } 
 	if (characterType == "building") {
 		if (player.coins < buildingMap["coinFarm"].cost) {
@@ -275,8 +303,10 @@ void handlePlayerMessage(SOCKET clientSocket, const std::string& message) {
        
         Building newBuilding = buildingMap["coinFarm"];
         newBuilding.midpoint = { coords[0], coords[1] };
-        return;
+        player.cities->buildings.push_back(newBuilding);
+        //return;
     }
+    //sendPlayerStateDeltaToClient();
 }
 
 // Threaded client handling function
@@ -354,7 +384,8 @@ void acceptPlayer(SOCKET serverSocket) {
 
         {
             std::lock_guard<std::mutex> lock(gameState.stateMutex);
-            clients[clientSocket] = clientAddr;
+            clients[clientSocket] = clientAddr; // This is where we are storing our clients
+            player.socket = clientSocket;
         }
 
         log("Client connected.");
@@ -375,18 +406,18 @@ void acceptPlayer(SOCKET serverSocket) {
 // Game loop to handle continuous game updates
 void boardLoop() {
     while (true) {
-        sendGameStateDeltasToClients();
-        std::this_thread::sleep_for(std::chrono::milliseconds(16)); // Roughly 60fps
+            sendGameStateDeltasToClients();
+            std::this_thread::sleep_for(std::chrono::milliseconds(16)); // Roughly 60fps
     }
 }
 
 int main() {
     // SETUP OUR MAPS
     // Troops
-    troopMap["Barbarian"] = { {}, 3, 100, 10, 1, 1, 50, 5, "red"};
+    troopMap["Barbarian"] = { {}, 3, 100, 10, 1, 1, 15, 5, "red"};
 
     // Buildings
-    buildingMap["coinFarm"] = { {}, 5, 100, 5, 150, {}, 5, "green"};
+    buildingMap["coinFarm"] = { {}, 5, 100, 5, 50, {}, 5, "green"};
 
     // NETWORK CONFIG
     WSADATA wsaData;
