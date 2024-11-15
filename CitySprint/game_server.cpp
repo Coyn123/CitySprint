@@ -72,6 +72,7 @@ struct Building {
 
 struct City {
     // Location Tracker
+    //std::vector<std::vector<int>> coordinates;
     std::vector<int> midpoint;
     int coins{};
 
@@ -85,7 +86,7 @@ struct City {
     std::vector<Building> buildings;
 };
 
-struct PlayerState {
+struct PlayerState { // This is you
     SOCKET socket;
 
     int phase{};
@@ -141,9 +142,10 @@ void changeGridPoint(int x, int y, const std::string& color) {
 std::string serializePlayerStateToString() {
     std::string result;
     result += "{\"player\": {\"coins\":\"";
-    result += player.coins + "\",\"troops\":\"[";
+    result += std::to_string(player.coins);
+    result += "\",\"troops\":\"[";
     // Append the troops here
-    result += "]\"";
+    result += "]\"}}";
 
     return result;
 }
@@ -175,8 +177,7 @@ std::string serializeGameStateToString() {
 			result += std::to_string(tile.x) + "," + std::to_string(tile.y) + "," + tile.color + ";";
 		}
     }
-    result += "\"}, \"coins\":\"";
-    result += std::to_string(player.coins) + "\"}";
+    result += "\"}}";
     return result;
 }
 
@@ -271,17 +272,13 @@ void handlePlayerMessage(SOCKET clientSocket, const std::string& message) {
 	// Decide what the player is trying to do now
 	if (characterType == "coin") {
 		int currentCoins = player.coins;
-		std::cout << "Player has : " << player.coins << " coins" << std::endl;
 		player.coins = currentCoins + 1;
-		std::cout << "Player now has : " << player.coins << " coins" << std::endl;
-		// Create a function to send the client the updated coint coun
 	} 
 	if (characterType == "troop") {
 		if (player.coins < troopMap["Barbarian"].cost) {
 			return;
 		}
 		int createTroop = insertCharacter(coords, troopMap[troopType].size, troopMap[troopType].color);
-		std::cout << "Player has: " << player.coins << "coins" << std::endl;
 		int currentCoins = player.coins;
 		player.coins = currentCoins - troopMap[troopType].cost;
 		std::cout << "Player has: " << player.coins << " coins left" << std::endl;
@@ -289,7 +286,6 @@ void handlePlayerMessage(SOCKET clientSocket, const std::string& message) {
 		Troop newTroop = troopMap["Barbarian"];
 		newTroop.midpoint = {coords[0], coords[1]};
 		player.cities->troops.push_back(newTroop);
-	    //return;
     } 
 	if (characterType == "building") {
 		if (player.coins < buildingMap["coinFarm"].cost) {
@@ -297,26 +293,23 @@ void handlePlayerMessage(SOCKET clientSocket, const std::string& message) {
 		}
 		int createBuilding = insertCharacter(coords, buildingMap["coinFarm"].size, buildingMap["coinFarm"].color);
 	    int currentCoins = player.coins;
-        std::cout << "Player has: " << player.coins << std::endl;
         player.coins = currentCoins - buildingMap["coinFarm"].cost;
-        std::cout << "Player now has: " << player.coins << std::endl;
        
         Building newBuilding = buildingMap["coinFarm"];
         newBuilding.midpoint = { coords[0], coords[1] };
         player.cities->buildings.push_back(newBuilding);
-        //return;
     }
-    //sendPlayerStateDeltaToClient();
+    sendPlayerStateDeltaToClient();
 }
 
 // Threaded client handling function
 void gameLogic(SOCKET clientSocket) {
     char buffer[512];
     int bytesReceived;
+    player.socket = clientSocket;
 
     // This is where we initialize the player for their instance of the game 
     player.coins = 100;   
-    std::cout << "Player coins: :" << std::to_string(player.coins) << std::endl;
     
     while ((bytesReceived = recv(clientSocket, buffer, sizeof(buffer), 0)) > 0) {
         std::string message(buffer, bytesReceived);
