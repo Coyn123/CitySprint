@@ -130,7 +130,20 @@ void initializeGameState() {
 
 void changeGridPoint(int x, int y, const std::string& color) {
     std::lock_guard<std::mutex> lock(gameState.stateMutex);
+   /* 
+    auto isColliding = [](int x, int y, const GameState& gs) {
+        if (gs.board[x][y] != "#696969") {
+            std::cout << gs.board[x][y] << " Is HITTING -> " << "#696969" << std::endl;
+            return 1;
+        }
+        std::cout << gs.board[x][y] << " Is NOT HITTING -> " << "#696969" << std::endl;
+        return 0;
+    };
 
+    if (isColliding(x,y, gameState)) {
+        return;
+    }
+*/   
     if (x >= 0 && x < BOARD_WIDTH / TILE_SIZE && y >= 0 && y < BOARD_HEIGHT / TILE_SIZE) {
         gameState.board[y][x] = color;
         gameState.changedTiles.push_back({ x, y, color });
@@ -149,7 +162,6 @@ std::string serializePlayerStateToString() {
 
     return result;
 }
-
 
 void sendPlayerStateDeltaToClient() {
     std::string playerState = serializePlayerStateToString();
@@ -198,6 +210,22 @@ void sendGameStateDeltasToClients() {
     gameState.changedTiles.clear();
 }
 
+int drawCircle(int (*func)(int,int), int x, int y, int radius, std::string color) {
+    return func(x,y);
+}
+
+// Come back to this immediately after refactoring to put the circle logic outside of the 
+int isColliding(int x, int y) {
+    std::lock_guard<std::mutex> lock(gameState.stateMutex);
+    std::cout << "Made it here so far" << std::endl;
+    std::cout << gameState.board[x][y] << std::endl;
+    if (gameState.board[x][y] != "#696969") {
+        std::cout << "DEBUG FROM HERE!!!" << std::endl;
+        return 1;
+    }
+    return 0;
+}
+
 // When not high as fuck, create a functional version of this using lambda functions and
 // a recursive function to handle the for loop logic
 int insertCharacter(int coords[], int radius, std::string color) {
@@ -208,6 +236,10 @@ int insertCharacter(int coords[], int radius, std::string color) {
     int d = 3 - 2 * radius;
     int y = radius;
     int x = 0;
+
+    if (drawCircle(&isColliding, x, y, radius, color)) {
+        return 1;
+    }
 
     //changeGridPoint(coords[0], coords[1], color);
     while (y >= x) {
