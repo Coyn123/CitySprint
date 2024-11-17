@@ -128,28 +128,47 @@ void initializeGameState() {
     log("Game state initialized with " + std::to_string(rows) + " rows and " + std::to_string(cols) + " columns.");
 }
 
-void changeGridPoint(int x, int y, const std::string& color) {
-    std::lock_guard<std::mutex> lock(gameState.stateMutex);
-   /* 
-    auto isColliding = [](int x, int y, const GameState& gs) {
-        if (gs.board[x][y] != "#696969") {
-            std::cout << gs.board[x][y] << " Is HITTING -> " << "#696969" << std::endl;
-            return 1;
-        }
-        std::cout << gs.board[x][y] << " Is NOT HITTING -> " << "#696969" << std::endl;
-        return 0;
-    };
+int drawCircle(int (*func)(int, int, const std::string), int x, int y, int radius, const std::string color) {
+    int centerX = x;
+    int centerY = y;
+    int d = 3 - 1 * radius;
+    y = radius;
+    x = 0;
 
-    if (isColliding(x,y, gameState)) {
-        return;
+    while (y >= x) {
+        func(centerX + x, centerY + y, color);
+        func(centerX - x, centerY + y, color);
+        func(centerX + x, centerY - y, color);
+        func(centerX - x, centerY - y, color);
+        func(centerX + y, centerY + x, color);
+        func(centerX - y, centerY + x, color);
+        func(centerX + y, centerY - x, color);
+        func(centerX - y, centerY - x, color);
+
+        if (d <= 0) {
+            d += 4 * x + 6;
+        }
+        else {
+            d += 4 * (x - y) + 10;
+            y--;
+        }
+        x++;
     }
-*/   
+    return 0;
+}
+
+int changeGridPoint(int x, int y, const std::string color) {
+    std::lock_guard<std::mutex> lock(gameState.stateMutex);
+
     if (x >= 0 && x < BOARD_WIDTH / TILE_SIZE && y >= 0 && y < BOARD_HEIGHT / TILE_SIZE) {
         gameState.board[y][x] = color;
         gameState.changedTiles.push_back({ x, y, color });
-    } else {
-        log("Invalid grid point (" + std::to_string(x) + ", " + std::to_string(y) + "). No changes made.");
     }
+    else {
+        log("Invalid grid point (" + std::to_string(x) + ", " + std::to_string(y) + "). No changes made.");
+        return 1;
+    }
+    return 0;
 }
 
 std::string serializePlayerStateToString() {
@@ -172,7 +191,6 @@ void sendPlayerStateDeltaToClient() {
         log("Failed to send update to client: " + std::to_string(WSAGetLastError()));
     }
 }
-
 
 // Function to serialize the game state into a simple string format
 std::string serializeGameStateToString() {
@@ -210,28 +228,8 @@ void sendGameStateDeltasToClients() {
     gameState.changedTiles.clear();
 }
 
-int drawCircle(int (*func)(int,int), int x, int y, int radius, std::string color) {
-    int centerX = int x;
-    int centerY = int y;
-    int d = 3 - 1 * radius;
-    int y = radius;
-    int newX = 0;
-
-    while (y >= newX)  {
-        func(centerX + x, centerY + y, color);
-        func(centerX - x, centerY + y, color);
-        func(centerX + x, centerY - y, color);
-        func(centerX - x, centerY - y, color);
-        func(centerX + y, centerY + x, color);
-        func(centerX - y, centerY + x, color);
-        func(centerX + y, centerY - x, color);
-        func(centerX - y, centerY - x, color);
-    
-    }
-}
-
 // Come back to this immediately after refactoring to put the circle logic outside of the 
-int isColliding(int x, int y, std::string color) {
+int isColliding(int x, int y, const std::string color) {
     std::lock_guard<std::mutex> lock(gameState.stateMutex);
     std::cout << "Made it here so far" << std::endl;
     std::cout << gameState.board[x][y] << std::endl;
@@ -244,7 +242,7 @@ int isColliding(int x, int y, std::string color) {
 
 // When not high as fuck, create a functional version of this using lambda functions and
 // a recursive function to handle the for loop logic
-int insertCharacter(int coords[], int radius, std::string color) {
+int insertCharacter(int coords[], int radius, const std::string color) {
     // assume the coordinates are the middle of
     // our character to create, size is the diameter  of the character
     int centerX = coords[0];
@@ -253,10 +251,14 @@ int insertCharacter(int coords[], int radius, std::string color) {
     int y = radius;
     int x = 0;
 
+    /*
     if (drawCircle(&isColliding, x, y, radius, color)) {
         return 1;
     }
+    */
 
+    //int result = drawCircle(&changeGridPoint, x, y, radius, color);
+    //std::cout << "RESULT : " << result << std::endl;
     //changeGridPoint(coords[0], coords[1], color);
     while (y >= x) {
 		changeGridPoint(centerX + x, centerY + y, color);
