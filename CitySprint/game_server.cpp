@@ -211,11 +211,27 @@ void sendGameStateDeltasToClients() {
 }
 
 int drawCircle(int (*func)(int,int), int x, int y, int radius, std::string color) {
-    return func(x,y);
+    int centerX = int x;
+    int centerY = int y;
+    int d = 3 - 1 * radius;
+    int y = radius;
+    int newX = 0;
+
+    while (y >= newX)  {
+        func(centerX + x, centerY + y, color);
+        func(centerX - x, centerY + y, color);
+        func(centerX + x, centerY - y, color);
+        func(centerX - x, centerY - y, color);
+        func(centerX + y, centerY + x, color);
+        func(centerX - y, centerY + x, color);
+        func(centerX + y, centerY - x, color);
+        func(centerX - y, centerY - x, color);
+    
+    }
 }
 
 // Come back to this immediately after refactoring to put the circle logic outside of the 
-int isColliding(int x, int y) {
+int isColliding(int x, int y, std::string color) {
     std::lock_guard<std::mutex> lock(gameState.stateMutex);
     std::cout << "Made it here so far" << std::endl;
     std::cout << gameState.board[x][y] << std::endl;
