@@ -27,6 +27,7 @@ typedef int socklen_t;
 #include <iomanip>
 #include <fstream>
 #include <openssl/sha.h>
+#include <unordered_map>
 
 #include "misc_lib.h"
 
@@ -48,78 +49,62 @@ struct Tile {
     std::string color;
 };
 
-// Global Game State
-struct GameState {
-    std::vector<std::vector<std::string>> board; // 2D board representing tile colors
-    std::vector<Tile> changedTiles; // List of changed tiles
-    std::mutex stateMutex;
-};
-
+// Structure to represent a troop
 struct Troop {
-    // Location Tracker
     std::vector<int> midpoint;
     int size{};
-    
-    // Basic troop attributes
     int defense{};
     int attack{};
     int movement{};
     int attackDistance{};
     int cost{};
-
-    // Troops also have a cost to maintain
     int foodCost{};
-
-    // Troops will have a designated color
     std::string color;
 };
 
+// Structure to represent a building
 struct Building {
-    // Location Tracker
-    std::vector<int> midpoint;    
+    std::vector<int> midpoint;
     int size{};
-
-    // Each building can be attacked and will attack withing a melee attack radius 
     int defense{};
     int attack{};
     int cost{};
-    
-    // Buildings are either coin or food production, so if food == 0 -> coins
     int food{};
-    int coins{};   
- 
+    int coins{};
     std::string color;
 };
 
+// Structure to represent a city
 struct City {
-    // Location Tracker
-    //std::vector<std::vector<int>> coordinates;
     std::vector<int> midpoint;
     int coins{};
-
-    // Basic city attributes
     int defense{};
     int attack{};
     std::string color;
-    
-    // Store our cities troops and buildings for those troops
     std::vector<Troop> troops;
     std::vector<Building> buildings;
 };
 
-struct PlayerState { // This is you
+// Structure to represent player state
+struct PlayerState {
     SOCKET socket;
-
     int phase{};
     int coins{};
-    City cities[2]; 
+    City cities[2]; // Correctly declare cities as an array of City objects
+};
+
+// Global Game State
+struct GameState {
+    std::unordered_map<SOCKET, PlayerState> player_states;
+    std::mutex mtx;
+    std::vector<std::vector<std::string>> board; // 2D board representing tile colors
+    std::vector<Tile> changedTiles; // List of changed tiles
+    std::mutex stateMutex;
 };
 
 GameState gameState;
 std::map<SOCKET, sockaddr_in> clients;
 std::ofstream logFile("./log/log.txt", std::ios::out | std::ios::app);
-
-thread_local PlayerState player;
 
 std::map<std::string, Troop> troopMap;
 std::map<std::string, Building> buildingMap;
@@ -129,6 +114,21 @@ std::mutex clientsMutex;
 void log(const std::string& message) {
     std::cout << message << std::endl;
     logFile << message << std::endl;
+}
+
+void update_player_state(GameState& game_state, SOCKET socket, const PlayerState& state) {
+    std::lock_guard<std::mutex> lock(game_state.mtx);
+    game_state.player_states[socket] = state;
+}
+
+PlayerState get_player_state(GameState& game_state, SOCKET socket) {
+    std::lock_guard<std::mutex> lock(game_state.mtx);
+    return game_state.player_states[socket];
+}
+
+void remove_player(GameState& game_state, SOCKET socket) {
+    std::lock_guard<std::mutex> lock(game_state.mtx);
+    game_state.player_states.erase(socket);
 }
 
 // Initialize game board with empty tiles
@@ -194,7 +194,7 @@ int changeGridPoint(int x, int y, const std::string color) {
     return 0;
 }
 
-std::string serializePlayerStateToString() {
+std::string serializePlayerStateToString(const PlayerState& player) {
     std::string result;
     result += "{\"player\": {\"coins\":\"";
     result += std::to_string(player.coins);
@@ -205,8 +205,8 @@ std::string serializePlayerStateToString() {
     return result;
 }
 
-void sendPlayerStateDeltaToClient() {
-    std::string playerState = serializePlayerStateToString();
+void sendPlayerStateDeltaToClient(const PlayerState& player) {
+    std::string playerState = serializePlayerStateToString(player);
     std::string frame = encodeWebSocketFrame(playerState);
 
     int result = send(player.socket, frame.c_str(), static_cast<int>(frame.size()), 0);
@@ -220,20 +220,19 @@ std::string serializeGameStateToString() {
     std::string result;
     result += "{\"game\": { \"board\": \"";
     if (gameState.changedTiles.empty()) {
-		for (int y = 0; y < BOARD_HEIGHT/TILE_SIZE; y++) {
-		    for (int x = 0; x < BOARD_WIDTH/TILE_SIZE; x++) {
-		        result += std::to_string(x) + "," + std::to_string(y) + "," + gameState.board[y][x] + ";";
-		    }
-		}
+        for (int y = 0; y < BOARD_HEIGHT / TILE_SIZE; y++) {
+            for (int x = 0; x < BOARD_WIDTH / TILE_SIZE; x++) {
+                result += std::to_string(x) + "," + std::to_string(y) + "," + gameState.board[y][x] + ";";
+            }
+        }
     } else {
-		for (const auto& tile : gameState.changedTiles) {
-			result += std::to_string(tile.x) + "," + std::to_string(tile.y) + "," + tile.color + ";";
-		}
+        for (const auto& tile : gameState.changedTiles) {
+            result += std::to_string(tile.x) + "," + std::to_string(tile.y) + "," + tile.color + ";";
+        }
     }
     result += "\"}}";
     return result;
 }
-
 
 // Function to send game state updates to all clients
 void sendGameStateDeltasToClients() { 
@@ -284,14 +283,14 @@ int insertCharacter(int coords[], int radius, const std::string color) {
     //std::cout << "RESULT : " << result << std::endl;
     //changeGridPoint(coords[0], coords[1], color);
     while (y >= x) {
-		changeGridPoint(centerX + x, centerY + y, color);
-		changeGridPoint(centerX - x, centerY + y, color);
-		changeGridPoint(centerX + x, centerY - y, color);
-		changeGridPoint(centerX - x, centerY - y, color);
-		changeGridPoint(centerX + y, centerY + x, color);
-		changeGridPoint(centerX - y, centerY + x, color);
-		changeGridPoint(centerX + y, centerY - x, color);
-		changeGridPoint(centerX - y, centerY - x, color);
+        changeGridPoint(centerX + x, centerY + y, color);
+        changeGridPoint(centerX - x, centerY + y, color);
+        changeGridPoint(centerX + x, centerY - y, color);
+        changeGridPoint(centerX - x, centerY - y, color);
+        changeGridPoint(centerX + y, centerY + x, color);
+        changeGridPoint(centerX - y, centerY + x, color);
+        changeGridPoint(centerX + y, centerY - x, color);
+        changeGridPoint(centerX - y, centerY - x, color);
     
         x++;
         if (d > 0) {
@@ -311,6 +310,8 @@ void handlePlayerMessage(SOCKET clientSocket, const std::string& message) {
     std::string segment;
     std::vector<std::string> segments;
 
+    PlayerState player = get_player_state(gameState, clientSocket);
+
     log("Handling player message: " + message);
 
     while (std::getline(iss, segment, ',')) {
@@ -321,71 +322,77 @@ void handlePlayerMessage(SOCKET clientSocket, const std::string& message) {
         return;
     }
 
-	int x = std::stoi(segments[0]);
-	int y = std::stoi(segments[1]);
-	std::string color = segments[2];
-	std::string characterType = segments[3];
+    int x = std::stoi(segments[0]);
+    int y = std::stoi(segments[1]);
+    std::string color = segments[2];
+    std::string characterType = segments[3];
 
-	log("Parsed message: x = " + std::to_string(x) + ", y = " + std::to_string(y) + ", color = " + color + ", characterType = " + characterType);
+    log("Parsed message: x = " + std::to_string(x) + ", y = " + std::to_string(y) + ", color = " + color + ", characterType = " + characterType);
 
-	int coords[2] = { x, y };
+    int coords[2] = { x, y };
 
-	if (x == 1000 && y == 1000) {
-		initializeGameState();
-	}
+    if (x == 1000 && y == 1000) {
+        initializeGameState();
+    }
 
-	if (player.phase == 0) {
-		std::cout << "Player has no cities" << std::endl;
-		int cityBuilt = insertCharacter(coords, 15, "yellow");
-		player.cities[0] = { { coords[0], coords[1] }, 0, 100, 10, "yellow"};
-		player.phase = 1;
-		return;
-	}
+    if (player.phase == 0) {
+        std::cout << "Player has no cities" << std::endl;
+        int cityBuilt = insertCharacter(coords, 15, "yellow");
+        player.cities[0] = { { coords[0], coords[1] }, 0, 100, 10, "yellow" };
+        player.phase = 1;
+        update_player_state(gameState, clientSocket, player);
+        return;
+    }
 
-	std::string troopType = "Barbarian";
+    std::string troopType = "Barbarian";
 
-	// Decide what the player is trying to do now
-	if (characterType == "coin") {
-		int currentCoins = player.coins;
-		player.coins = currentCoins + 1;
-	} 
-	if (characterType == "troop") {
-		if (player.coins < troopMap["Barbarian"].cost) {
-			return;
-		}
-		int createTroop = insertCharacter(coords, troopMap[troopType].size, troopMap[troopType].color);
-		int currentCoins = player.coins;
-		player.coins = currentCoins - troopMap[troopType].cost;
-		std::cout << "Player has: " << player.coins << " coins left" << std::endl;
-		
-		Troop newTroop = troopMap["Barbarian"];
-		newTroop.midpoint = {coords[0], coords[1]};
-		player.cities->troops.push_back(newTroop);
+    // Decide what the player is trying to do now
+    if (characterType == "coin") {
+        int currentCoins = player.coins;
+        player.coins = currentCoins + 1;
     } 
-	if (characterType == "building") {
-		if (player.coins < buildingMap["coinFarm"].cost) {
-			return;
-		}
-		int createBuilding = insertCharacter(coords, buildingMap["coinFarm"].size, buildingMap["coinFarm"].color);
-	    int currentCoins = player.coins;
+    if (characterType == "troop") {
+        if (player.coins < troopMap["Barbarian"].cost) {
+            return;
+        }
+        int createTroop = insertCharacter(coords, troopMap[troopType].size, troopMap[troopType].color);
+        int currentCoins = player.coins;
+        player.coins = currentCoins - troopMap[troopType].cost;
+        std::cout << "Player has: " << player.coins << " coins left" << std::endl;
+
+        Troop newTroop = troopMap["Barbarian"];
+        newTroop.midpoint = { coords[0], coords[1] };
+        player.cities->troops.push_back(newTroop);
+    } 
+    if (characterType == "building") {
+        if (player.coins < buildingMap["coinFarm"].cost) {
+            return;
+        }
+        int createBuilding = insertCharacter(coords, buildingMap["coinFarm"].size, buildingMap["coinFarm"].color);
+        int currentCoins = player.coins;
         player.coins = currentCoins - buildingMap["coinFarm"].cost;
-       
+
         Building newBuilding = buildingMap["coinFarm"];
         newBuilding.midpoint = { coords[0], coords[1] };
         player.cities->buildings.push_back(newBuilding);
     }
-    sendPlayerStateDeltaToClient();
+    update_player_state(gameState, clientSocket, player);
+    sendPlayerStateDeltaToClient(player);
 }
 
 // Threaded client handling function
 void gameLogic(SOCKET clientSocket) {
     char buffer[512];
     int bytesReceived;
-    player.socket = clientSocket;
 
-    // This is where we initialize the player for their instance of the game 
-    player.coins = 100;   
-    
+    // Initialize player state
+    PlayerState player_state;
+    player_state.socket = clientSocket;
+    player_state.coins = 100; // Example initial state
+
+    // Store the initial state in the GameState structure
+    update_player_state(gameState, clientSocket, player_state);
+
     while ((bytesReceived = recv(clientSocket, buffer, sizeof(buffer), 0)) > 0) {
         std::string message(buffer, bytesReceived);
         std::string decodedMessage = decodeWebSocketFrame(message);  // Decoding WebSocket frame
@@ -407,7 +414,7 @@ void handleWebSocketHandshake(SOCKET clientSocket, const std::string& request) {
     std::string line;
     std::string webSocketKey;
 
-    while (std::getline(requestStream, line) && line != "\r") {
+  while (std::getline(requestStream, line) && line != "\r") {
         if (line.find("Sec-WebSocket-Key") != std::string::npos) {
             webSocketKey = line.substr(line.find(":") + 2);
             webSocketKey = webSocketKey.substr(0, webSocketKey.length() - 1);
@@ -454,7 +461,6 @@ void acceptPlayer(SOCKET serverSocket) {
         {
             std::lock_guard<std::mutex> lock(gameState.stateMutex);
             clients[clientSocket] = clientAddr; // This is where we are storing our clients
-            player.socket = clientSocket;
         }
 
         log("Client connected.");
@@ -475,18 +481,18 @@ void acceptPlayer(SOCKET serverSocket) {
 // Game loop to handle continuous game updates
 void boardLoop() {
     while (true) {
-            sendGameStateDeltasToClients();
-            std::this_thread::sleep_for(std::chrono::milliseconds(16)); // Roughly 60fps
+        sendGameStateDeltasToClients();
+        std::this_thread::sleep_for(std::chrono::milliseconds(16)); // Roughly 60fps
     }
 }
 
 int main() {
     // SETUP OUR MAPS
     // Troops
-    troopMap["Barbarian"] = { {}, 3, 100, 10, 1, 1, 15, 5, "red"};
+    troopMap["Barbarian"] = { {}, 3, 100, 10, 1, 1, 15, 5, "red" };
 
     // Buildings
-    buildingMap["coinFarm"] = { {}, 5, 100, 5, 50, {}, 5, "green"};
+    buildingMap["coinFarm"] = { {}, 5, 100, 5, 50, {}, 5, "green" };
 
     // NETWORK CONFIG
 #ifdef _WIN32

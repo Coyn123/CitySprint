@@ -85,7 +85,7 @@ void handle_client(SOCKET client_socket) {
     std::string method, path, version;
     request_stream >> method >> path >> version;
 
-    std::cout << "Client connected. Requested path: " << path << std::endl;
+    std::cout << "[" << get_current_time() << "] " << method << " for " << path << std::endl;
 
     if (method == "GET") {
         std::string file_path = path;
