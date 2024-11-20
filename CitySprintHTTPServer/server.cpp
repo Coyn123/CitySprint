@@ -7,6 +7,8 @@
 #include <iomanip>
 
 #ifdef _WIN32
+#define _WINSOCK_DEPRECATED_NO_WARNINGS
+typedef int socklen_t;
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <process.h>
@@ -53,7 +55,12 @@ std::string get_mime_type(const std::string& path) {
 }
 
 std::string get_file_content(const std::string& path) {
+#ifdef _WIN32
+    std::string full_path = "../../../../CitySprintHTTPServer/templates/" + path;
+#else
     std::string full_path = "../../CitySprintHTTPServer/templates/" + path;
+#endif
+
     std::ifstream file(full_path, std::ios::binary);
     if (!file) {
         std::cout << "File not found: " << full_path << std::endl;

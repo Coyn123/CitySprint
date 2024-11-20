@@ -4,6 +4,8 @@
 #include <cstring>
 
 #ifdef _WIN32
+#define _WINSOCK_DEPRECATED_NO_WARNINGS
+typedef int socklen_t;
 #include <winsock2.h>
 #include <windows.h>
 #include <process.h>

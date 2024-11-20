@@ -1,4 +1,6 @@
 #ifdef _WIN32
+#define _WINSOCK_DEPRECATED_NO_WARNINGS
+typedef int socklen_t;
 #include <winsock2.h>
 #include <windows.h>
 #pragma comment(lib, "ws2_32.lib")
@@ -309,6 +311,8 @@ void handlePlayerMessage(SOCKET clientSocket, const std::string& message) {
     std::string segment;
     std::vector<std::string> segments;
 
+    log("Handling player message: " + message);
+
     while (std::getline(iss, segment, ',')) {
         segments.push_back(segment);
     }
@@ -439,6 +443,7 @@ void acceptPlayer(SOCKET serverSocket) {
     sockaddr_in clientAddr;
     socklen_t clientAddrSize = sizeof(clientAddr);
 
+    std::cout << "Player connected" << std::endl;
     while (true) {
         SOCKET clientSocket = accept(serverSocket, (struct sockaddr*)&clientAddr, &clientAddrSize);
         if (clientSocket == INVALID_SOCKET) {
@@ -504,7 +509,7 @@ int main() {
     sockaddr_in serverAddr;
     serverAddr.sin_family = AF_INET;
     serverAddr.sin_addr.s_addr = INADDR_ANY;
-    serverAddr.sin_port = htons(8080);
+    serverAddr.sin_port = htons(9001);
 
     if (bind(serverSocket, (struct sockaddr*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR) {
         std::cerr << "Bind failed: " << WSAGetLastError() << std::endl;
