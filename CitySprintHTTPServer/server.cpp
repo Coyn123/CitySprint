@@ -1,19 +1,34 @@
 #include <iostream>
 #include <sstream>
 #include <fstream>
+#include <unordered_map>
+#include <functional>
+#include <ctime>
+#include <iomanip>
+
+#ifdef _WIN32
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <process.h>
-#include <ctime>
-#include <iomanip>
+#pragma comment(lib, "Ws2_32.lib")
+#else
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+#include <errno.h>
+#define SOCKET int
+#define INVALID_SOCKET (-1)
+#define SOCKET_ERROR (-1)
+#define closesocket close
+#define WSAGetLastError() (errno)
+#endif
 
 #include "server.h"
 
 std::unordered_map<std::string, std::string> mime_types;
 std::unordered_map<std::string, std::function<std::string(const std::string&)>> get_routes;
 std::unordered_map<std::string, std::function<std::string(const std::string&)>> post_routes;
-
-#pragma comment(lib, "Ws2_32.lib")
 
 void handle_client(SOCKET client_socket) {
     char buffer[4096]; // Set our buffer for receiving messages
@@ -25,36 +40,10 @@ void handle_client(SOCKET client_socket) {
     }
     buffer[read_bytes] = '\0';
 
-    std::istringstream request_stream(buffer);
-    std::string method, path, version;
-    request_stream >> method >> path >> version; // put request parts into individual variables
-
-    sockaddr_in client_addr;
-    int addrlen = sizeof(client_addr);
-    getpeername(client_socket, (struct sockaddr*)&client_addr, &addrlen);
-    char client_ip[INET_ADDRSTRLEN];
-    strcpy(client_ip, inet_ntoa(client_addr.sin_addr));
-
-    std::cout << "[" << get_current_time() << "] " << method << " request from " << client_ip << " for " << path << std::endl;
-
-    std::string response;
-    if (method == "GET") {
-        response = handle_get_request(path);
-    } else if (method == "POST") {
-        std::string body;
-        std::string line;
-        while (std::getline(request_stream, line) && line != "\r") {
-            // Skip headers
-        }
-        while (std::getline(request_stream, line)) {
-            body += line + "\n";
-        }
-        response = handle_post_request(path, body);
-    } else {
-        response = "HTTP/1.1 405 Method Not Allowed\r\n\r\n";
-    }
-
+    // Process the request and send a response
+    std::string response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nHello, World!";
     send(client_socket, response.c_str(), response.size(), 0);
+
     closesocket(client_socket);
 }
 

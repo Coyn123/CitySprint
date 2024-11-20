@@ -7,9 +7,16 @@ set(CMAKE_CXX_STANDARD 17)
 # Include directories
 include_directories(${CMAKE_SOURCE_DIR}/include)
 
-#Create our executable
-add_executable(CitySprint "game_server.cpp"  "misc_lib.cpp")
+# Create our executable
+add_executable(CitySprint "game_server.cpp" "misc_lib.cpp")
 
-# Link libraries
-target_link_libraries(CitySprint ${CMAKE_SOURCE_DIR}/lib/libssl.lib ${CMAKE_SOURCE_DIR}/lib/libcrypto.lib)
-target_link_libraries(CitySprint ws2_32)
+if (WIN32)
+    set(CMAKE_SYSTEM_NAME Windows)
+    set(CMAKE_C_COMPILER x86_64-w64-mingw32-gcc)
+    set(CMAKE_CXX_COMPILER x86_64-w64-mingw32-g++)
+    set(CMAKE_RC_COMPILER x86_64-w64-mingw32-windres)
+    target_link_libraries(CitySprint ${CMAKE_SOURCE_DIR}/lib/libssl.lib ${CMAKE_SOURCE_DIR}/lib/libcrypto.lib ws2_32)
+else()
+    find_package(OpenSSL REQUIRED)
+    target_link_libraries(CitySprint OpenSSL::SSL OpenSSL::Crypto pthread)
+endif()

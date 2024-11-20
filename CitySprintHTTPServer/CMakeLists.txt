@@ -13,6 +13,8 @@ add_executable(CitySprintServer main.cpp server.cpp)
 # Link the Winsock library (ws2_32)
 if(WIN32)
     target_link_libraries(CitySprintServer PRIVATE ws2_32)
+else()
+    target_link_libraries(CitySprintServer PRIVATE pthread)
 endif()
 
 # Set working directory for Visual Studio

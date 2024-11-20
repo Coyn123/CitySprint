@@ -1,5 +1,20 @@
+#ifdef _WIN32
 #include <winsock2.h>
 #include <windows.h>
+#pragma comment(lib, "ws2_32.lib")
+#else
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+#include <errno.h>
+#define SOCKET int
+#define INVALID_SOCKET (-1)
+#define SOCKET_ERROR (-1)
+#define closesocket close
+#define WSAGetLastError() (errno)
+#endif
+
 #include <iostream>
 #include <vector>
 #include <map>
@@ -13,12 +28,16 @@
 
 #include "misc_lib.h"
 
-#pragma comment(lib, "ws2_32.lib")
-
 // Constants
 const int BOARD_WIDTH = 800;
 const int BOARD_HEIGHT = 600;
 const int TILE_SIZE = 2;
+
+// Function prototypes
+void handlePlayerMessage(SOCKET clientSocket, const std::string& message);
+void gameLogic(SOCKET clientSocket);
+void handleWebSocketHandshake(SOCKET clientSocket, const std::string& request);
+void acceptPlayer(SOCKET serverSocket);
 
 // Structure to represent a tile
 struct Tile {
@@ -102,6 +121,8 @@ thread_local PlayerState player;
 
 std::map<std::string, Troop> troopMap;
 std::map<std::string, Building> buildingMap;
+
+std::mutex clientsMutex;
 
 void log(const std::string& message) {
     std::cout << message << std::endl;
@@ -416,10 +437,10 @@ void handleWebSocketHandshake(SOCKET clientSocket, const std::string& request) {
 // Accept new client connections
 void acceptPlayer(SOCKET serverSocket) {
     sockaddr_in clientAddr;
-    int clientAddrSize = sizeof(clientAddr);
+    socklen_t clientAddrSize = sizeof(clientAddr);
 
     while (true) {
-        SOCKET clientSocket = accept(serverSocket, (SOCKADDR*)&clientAddr, &clientAddrSize);
+        SOCKET clientSocket = accept(serverSocket, (struct sockaddr*)&clientAddr, &clientAddrSize);
         if (clientSocket == INVALID_SOCKET) {
             log("Accept failed: " + std::to_string(WSAGetLastError()));
             continue;
@@ -463,28 +484,43 @@ int main() {
     buildingMap["coinFarm"] = { {}, 5, 100, 5, 50, {}, 5, "green"};
 
     // NETWORK CONFIG
+#ifdef _WIN32
     WSADATA wsaData;
     SOCKET serverSocket;
-    sockaddr_in serverAddr;
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
+        std::cerr << "WSAStartup failed: " << WSAGetLastError() << std::endl;
+        return 1;
+    }
+#else
+    SOCKET serverSocket;
+#endif
 
-    WSAStartup(MAKEWORD(2, 2), &wsaData);
     serverSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (serverSocket == INVALID_SOCKET) {
+        std::cerr << "Failed to create socket" << std::endl;
+        return 1;
+    }
 
+    sockaddr_in serverAddr;
     serverAddr.sin_family = AF_INET;
     serverAddr.sin_addr.s_addr = INADDR_ANY;
-    serverAddr.sin_port = htons(9001);
+    serverAddr.sin_port = htons(8080);
 
-    if (bind(serverSocket, (SOCKADDR*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR) {
-        log("Bind failed: " + std::to_string(WSAGetLastError()));
+    if (bind(serverSocket, (struct sockaddr*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR) {
+        std::cerr << "Bind failed: " << WSAGetLastError() << std::endl;
         closesocket(serverSocket);
+#ifdef _WIN32
         WSACleanup();
+#endif
         return 1;
     }
 
     if (listen(serverSocket, SOMAXCONN) == SOCKET_ERROR) {
-        log("Listen failed: " + std::to_string(WSAGetLastError()));
+        std::cerr << "Listen failed: " << WSAGetLastError() << std::endl;
         closesocket(serverSocket);
+#ifdef _WIN32
         WSACleanup();
+#endif
         return 1;
     }
 
@@ -496,7 +532,9 @@ int main() {
 
     acceptThread.join(); // Ensure accept thread completes before exiting
     closesocket(serverSocket);
+#ifdef _WIN32
     WSACleanup();
+#endif
     logFile.close();
     return 0;
 }
