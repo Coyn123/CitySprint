@@ -66,6 +66,8 @@ int main(int argc, char* argv[]) {
     }
 #endif
 
+    initialize_mime_types();
+
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd == INVALID_SOCKET) {
         std::cerr << "Failed to create socket" << std::endl;
@@ -105,6 +107,8 @@ int main(int argc, char* argv[]) {
             std::cerr << "Accept failed: " << WSAGetLastError() << std::endl;
             continue;
         }
+
+        std::cout << "Client connected from " << inet_ntoa(client_addr.sin_addr) << ":" << ntohs(client_addr.sin_port) << std::endl;
 
         void** args = new void*[1];
         args[0] = (void*)(intptr_t)client_socket;
