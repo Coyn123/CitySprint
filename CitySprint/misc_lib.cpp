@@ -84,4 +84,17 @@ std::string generateWebSocketAcceptKey(const std::string& key) {
     return base64Encode(hash, SHA_DIGEST_LENGTH);
 }
 
+double squareRoot(int initialNum) {
+    double numCopy = static_cast<double>(initialNum);
+   
+    if (numCopy < 2)
+        numCopy;
 
+    double z = (numCopy + (initialNum / numCopy)) / 2;
+
+    while (abs(numCopy - z) >= 0.00001) {
+        numCopy = z;
+        z = (numCopy + (initialNum / numCopy)) / 2;
+    }
+    return z;
+}

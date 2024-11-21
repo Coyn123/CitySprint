@@ -251,13 +251,32 @@ void sendGameStateDeltasToClients() {
 }
 
 // Come back to this immediately after refactoring to put the circle logic outside of the 
-int isColliding(int x, int y, const std::string color) {
-    std::lock_guard<std::mutex> lock(gameState.stateMutex);
-    std::cout << "Made it here so far" << std::endl;
-    std::cout << gameState.board[x][y] << std::endl;
-    if (gameState.board[x][y] != "#696969") {
-        std::cout << "DEBUG FROM HERE!!!" << std::endl;
+int isColliding(std::vector<int> circleOne, std::vector<int> circleTwo) {
+    int xOne = circleOne[0];
+    int yOne = circleOne[1];
+    int radOne = circleOne[2];
+
+    int xTwo = circleTwo[0];
+    int yTwo = circleTwo[1];
+    int radTwo = circleTwo[2];
+
+    int xResult = (xTwo - xOne) * (xTwo - xOne);
+    int yResult = (yTwo - yOne) * (yTwo - yOne);
+    int requiredDistance = radOne + radTwo;
+
+    int actualDistance = squareRoot(static_cast<double>(xResult + yResult));
+    
+    if (actualDistance < requiredDistance)
         return 1;
+    return 0;
+}
+
+int checkCollision(std::vector<int> circleOne) {
+    std::lock_guard<std::mutex> lock(gameState.stateMutex);
+
+    for (const auto& playerPair : gameState.player_states) {
+        const PlayerState& player = playerPair.second;
+        std::cout << "Player coins :" << player.coins << std::endl;
     }
     return 0;
 }
@@ -273,7 +292,10 @@ int insertCharacter(int coords[], int radius, const std::string color) {
     int y = radius;
     int x = 0;
 
-    
+    std::vector<int> circle = { coords[0], coords[1], radius };
+
+    if (checkCollision(circle))
+        return 1;
     //changeGridPoint(coords[0], coords[1], color);
     while (y >= x) {
         changeGridPoint(centerX + x, centerY + y, color);
