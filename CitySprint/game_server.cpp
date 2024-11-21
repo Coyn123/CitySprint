@@ -274,16 +274,55 @@ int isColliding(std::vector<int> circleOne, std::vector<int> circleTwo) {
 int checkCollision(std::vector<int> circleOne) {
     std::lock_guard<std::mutex> lock(gameState.stateMutex);
 
+    bool hasCircles = false;
     for (const auto& playerPair : gameState.player_states) {
         const PlayerState& player = playerPair.second;
-        std::cout << "Player coins :" << player.coins << std::endl;
+        for (const auto& city : player.cities) {
+            if (!city.midpoint.empty()) {
+                hasCircles = true;
+                break;
+            }
+        }
+        if (hasCircles)
+            break;
+    }
+   
+    if (!hasCircles)
+        return 0;
+
+    for (const auto& playerPair : gameState.player_states) {
+        const PlayerState& player = playerPair.second;
+		for (const auto& troops : player.cities->troops) {
+            if (!troops.midpoint.empty()) {
+				std::vector<int> circleTwo = { troops.midpoint[0], troops.midpoint[1], troops.size };
+				if (isColliding(circleOne, circleTwo)) {
+					return 1;
+				}
+            }
+		}
+		for (const auto& buildings : player.cities->buildings) {
+            if (!buildings.midpoint.empty()) {
+				std::vector<int> circleTwo = { buildings.midpoint[0], buildings.midpoint[1], buildings.size }; 
+				if (isColliding(circleOne, circleTwo)) {
+					return 1;
+				}
+            }
+        }
+		for (const auto& cities : player.cities) {
+            if (!cities.midpoint.empty()) {
+				std::vector<int> circleTwo = { cities.midpoint[0], cities.midpoint[1], 15 };
+				if (isColliding(circleOne, circleTwo)) {
+					return 1;
+				}
+            }
+		}
     }
     return 0;
 }
 
 // When not high as fuck, create a functional version of this using lambda functions and
 // a recursive function to handle the for loop logic
-int insertCharacter(int coords[], int radius, const std::string color) {
+int insertCharacter(std::vector<int> coords, int radius, const std::string color) {
     // assume the coordinates are the middle of
     // our character to create, size is the diameter  of the character
     int centerX = coords[0];
@@ -295,7 +334,8 @@ int insertCharacter(int coords[], int radius, const std::string color) {
     std::vector<int> circle = { coords[0], coords[1], radius };
 
     if (checkCollision(circle))
-        return 1;
+        return 0;
+
     //changeGridPoint(coords[0], coords[1], color);
     while (y >= x) {
         changeGridPoint(centerX + x, centerY + y, color);
@@ -344,7 +384,7 @@ void handlePlayerMessage(SOCKET clientSocket, const std::string& message) {
 
     log("Parsed message: x = " + std::to_string(x) + ", y = " + std::to_string(y) + ", color = " + color + ", characterType = " + characterType);
 
-    int coords[2] = { x, y };
+    std::vector<int> coords = { x, y };
 
     if (x == 1000 && y == 1000) {
         initializeGameState();
@@ -352,10 +392,11 @@ void handlePlayerMessage(SOCKET clientSocket, const std::string& message) {
 
     if (player.phase == 0) {
         std::cout << "Player has no cities" << std::endl;
-        int cityBuilt = insertCharacter(coords, 15, "yellow");
-        player.cities[0] = { { coords[0], coords[1] }, 0, 100, 10, "yellow" };
-        player.phase = 1;
-        update_player_state(gameState, clientSocket, player);
+        if (insertCharacter(coords, 15, "yellow")) {
+			player.cities[0] = { { coords[0], coords[1] }, 0, 100, 10, "yellow" };
+			player.phase = 1;
+			update_player_state(gameState, clientSocket, player);
+		}
         return;
     }
 
@@ -370,7 +411,8 @@ void handlePlayerMessage(SOCKET clientSocket, const std::string& message) {
         if (player.coins < troopMap["Barbarian"].cost) {
             return;
         }
-        int createTroop = insertCharacter(coords, troopMap[troopType].size, troopMap[troopType].color);
+        if (!insertCharacter(coords, troopMap[troopType].size, troopMap[troopType].color))
+            return;
         int currentCoins = player.coins;
         player.coins = currentCoins - troopMap[troopType].cost;
         std::cout << "Player has: " << player.coins << " coins left" << std::endl;
@@ -383,7 +425,8 @@ void handlePlayerMessage(SOCKET clientSocket, const std::string& message) {
         if (player.coins < buildingMap["coinFarm"].cost) {
             return;
         }
-        int createBuilding = insertCharacter(coords, buildingMap["coinFarm"].size, buildingMap["coinFarm"].color);
+        if (!insertCharacter(coords, buildingMap["coinFarm"].size, buildingMap["coinFarm"].color))
+            return;
         int currentCoins = player.coins;
         player.coins = currentCoins - buildingMap["coinFarm"].cost;
 
