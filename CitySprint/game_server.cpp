@@ -271,6 +271,23 @@ int isColliding(std::vector<int> circleOne, std::vector<int> circleTwo) {
     return 0;
 }
 
+bool isWithinRadius(const std::vector<int>& point, const std::vector<int>& center, int radius) {
+    if (point.size() < 2 || center.size() < 2) {
+        log("Invalid point or center size.");
+        return false;
+    }
+
+    int dx = point[0] - center[0];
+    int dy = point[1] - center[1];
+    bool withinRadius = (dx * dx + dy * dy) <= (radius * radius);
+
+    log("Checking radius: point (" + std::to_string(point[0]) + ", " + std::to_string(point[1]) +
+        "), center (" + std::to_string(center[0]) + ", " + std::to_string(center[1]) +
+        "), radius " + std::to_string(radius) + " -> " + (withinRadius ? "within" : "outside"));
+
+    return withinRadius;
+}
+
 int checkCollision(std::vector<int> circleOne) {
     std::lock_guard<std::mutex> lock(gameState.stateMutex);
 
@@ -374,6 +391,7 @@ void handlePlayerMessage(SOCKET clientSocket, const std::string& message) {
     }
 
     if (segments.size() != 4) {
+        log("Invalid message format.");
         return;
     }
 
@@ -388,51 +406,79 @@ void handlePlayerMessage(SOCKET clientSocket, const std::string& message) {
 
     if (x == 1000 && y == 1000) {
         initializeGameState();
+        return;
     }
 
     if (player.phase == 0) {
-        std::cout << "Player has no cities" << std::endl;
+        log("Player has no cities.");
         if (insertCharacter(coords, 15, "yellow")) {
-			player.cities[0] = { { coords[0], coords[1] }, 0, 100, 10, "yellow" };
-			player.phase = 1;
-			update_player_state(gameState, clientSocket, player);
-		}
+            player.cities[0] = { { coords[0], coords[1] }, 0, 100, 10, "yellow" };
+            player.phase = 1;
+            update_player_state(gameState, clientSocket, player);
+        }
         return;
     }
 
     std::string troopType = "Barbarian";
 
+    // Check if the action is within the allowed radius of the city
+    bool withinCityRadius = false;
+    for (const auto& city : player.cities) {
+        if (isWithinRadius(coords, city.midpoint, 100)) {
+            withinCityRadius = true;
+            break;
+        }
+    }
+
+    if (!withinCityRadius) {
+        log("Action is outside the allowed radius of the city.");
+        return;
+    }
+
     // Decide what the player is trying to do now
     if (characterType == "coin") {
-        int currentCoins = player.coins;
-        player.coins = currentCoins + 1;
-    } 
-    if (characterType == "troop") {
+        for (const auto& city : player.cities) {
+            if (isWithinRadius(coords, city.midpoint, 15)) {
+                int currentCoins = player.coins;
+                player.coins = currentCoins + 1;
+                log("Coin collected. Player now has " + std::to_string(player.coins) + " coins.");
+                break;
+            }
+        }
+    }
+    else if (characterType == "troop") {
         if (player.coins < troopMap["Barbarian"].cost) {
+            log("Not enough coins to create troop.");
             return;
         }
-        if (!insertCharacter(coords, troopMap[troopType].size, troopMap[troopType].color))
+        if (!insertCharacter(coords, troopMap[troopType].size, troopMap[troopType].color)) {
+            log("Failed to insert troop character.");
             return;
+        }
         int currentCoins = player.coins;
         player.coins = currentCoins - troopMap[troopType].cost;
-        std::cout << "Player has: " << player.coins << " coins left" << std::endl;
+        log("Troop created. Player now has " + std::to_string(player.coins) + " coins left.");
 
         Troop newTroop = troopMap["Barbarian"];
         newTroop.midpoint = { coords[0], coords[1] };
-        player.cities->troops.push_back(newTroop);
-    } 
-    if (characterType == "building") {
+        player.cities[0].troops.push_back(newTroop); // Ensure we are accessing the correct city
+    }
+    else if (characterType == "building") {
         if (player.coins < buildingMap["coinFarm"].cost) {
+            log("Not enough coins to create building.");
             return;
         }
-        if (!insertCharacter(coords, buildingMap["coinFarm"].size, buildingMap["coinFarm"].color))
+        if (!insertCharacter(coords, buildingMap["coinFarm"].size, buildingMap["coinFarm"].color)) {
+            log("Failed to insert building character.");
             return;
+        }
         int currentCoins = player.coins;
         player.coins = currentCoins - buildingMap["coinFarm"].cost;
+        log("Building created. Player now has " + std::to_string(player.coins) + " coins left.");
 
         Building newBuilding = buildingMap["coinFarm"];
         newBuilding.midpoint = { coords[0], coords[1] };
-        player.cities->buildings.push_back(newBuilding);
+        player.cities[0].buildings.push_back(newBuilding); // Ensure we are accessing the correct city
     }
     update_player_state(gameState, clientSocket, player);
     sendPlayerStateDeltaToClient(player);
