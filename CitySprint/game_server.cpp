@@ -468,7 +468,6 @@ void acceptPlayer(SOCKET serverSocket) {
             log("Failed to receive handshake request: " + std::to_string(WSAGetLastError()));
         }
     }
-
 }
 
 // Game loop to handle continuous game updates
