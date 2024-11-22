@@ -273,6 +273,26 @@ int isColliding(std::vector<int> circleOne, std::vector<int> circleTwo) {
     return 0;
 }
 
+Troop* findNearestTroop(PlayerState& player, const std::vector<int>& coords) {
+    Troop* nearestTroop = nullptr;
+    int minDistance = std::numeric_limits<int>::max();
+
+    for (auto& city : player.cities) {
+        if (city.midpoint.empty()) continue; // Skip uninitialized cities
+        for (auto& troop : city.troops) {
+            if (troop.midpoint.size() < 2) continue; // Skip uninitialized troops
+            int dx = coords[0] - troop.midpoint[0];
+            int dy = coords[1] - troop.midpoint[1];
+            int distance = dx * dx + dy * dy;
+            if (distance < minDistance) {
+                minDistance = distance;
+                nearestTroop = &troop;
+            }
+        }
+    }
+
+    return nearestTroop;
+}
 bool isWithinRadius(const std::vector<int>& point, const std::vector<int>& center, int radius) {
     if (point.size() < 2 || center.size() < 2) {
         log("Invalid point or center size.");
@@ -290,7 +310,7 @@ bool isWithinRadius(const std::vector<int>& point, const std::vector<int>& cente
     return withinRadius;
 }
 
-int checkCollision(std::vector<int> circleOne) {
+int checkCollision(const std::vector<int>& circleOne, const std::vector<int>& ignoreCoords = {}) {
     std::lock_guard<std::mutex> lock(gameState.stateMutex);
 
     bool hasCircles = false;
@@ -305,45 +325,55 @@ int checkCollision(std::vector<int> circleOne) {
         if (hasCircles)
             break;
     }
-   
+
     if (!hasCircles)
         return 0;
 
     for (const auto& playerPair : gameState.player_states) {
         const PlayerState& player = playerPair.second;
-		for (const auto& troops : player.cities->troops) {
-            if (!troops.midpoint.empty()) {
-				std::vector<int> circleTwo = { troops.midpoint[0], troops.midpoint[1], troops.size };
-				if (isColliding(circleOne, circleTwo)) {
-					return 1;
-				}
-            }
-		}
-		for (const auto& buildings : player.cities->buildings) {
-            if (!buildings.midpoint.empty()) {
-				std::vector<int> circleTwo = { buildings.midpoint[0], buildings.midpoint[1], buildings.size }; 
-				if (isColliding(circleOne, circleTwo)) {
-					return 1;
-				}
+        for (const auto& troop : player.cities->troops) {
+            if (!troop.midpoint.empty()) {
+                std::vector<int> circleTwo = { troop.midpoint[0], troop.midpoint[1], troop.size };
+                if (circleTwo == ignoreCoords) {
+                    log("Ignoring collision check for troop at (" + std::to_string(circleTwo[0]) + ", " + std::to_string(circleTwo[1]) + ")");
+                    continue; // Skip collision check for the specified coordinates
+                }
+                if (isColliding(circleOne, circleTwo)) {
+                    return 1;
+                }
             }
         }
-		for (const auto& cities : player.cities) {
-            if (!cities.midpoint.empty()) {
-				std::vector<int> circleTwo = { cities.midpoint[0], cities.midpoint[1], 15 };
-				if (isColliding(circleOne, circleTwo)) {
-					return 1;
-				}
+        for (const auto& building : player.cities->buildings) {
+            if (!building.midpoint.empty()) {
+                std::vector<int> circleTwo = { building.midpoint[0], building.midpoint[1], building.size };
+                if (circleTwo == ignoreCoords) {
+                    log("Ignoring collision check for building at (" + std::to_string(circleTwo[0]) + ", " + std::to_string(circleTwo[1]) + ")");
+                    continue; // Skip collision check for the specified coordinates
+                }
+                if (isColliding(circleOne, circleTwo)) {
+                    return 1;
+                }
             }
-		}
+        }
+        for (const auto& city : player.cities) {
+            if (!city.midpoint.empty()) {
+                std::vector<int> circleTwo = { city.midpoint[0], city.midpoint[1], 15 };
+                if (circleTwo == ignoreCoords) {
+                    log("Ignoring collision check for city at (" + std::to_string(circleTwo[0]) + ", " + std::to_string(circleTwo[1]) + ")");
+                    continue; // Skip collision check for the specified coordinates
+                }
+                if (isColliding(circleOne, circleTwo)) {
+                    return 1;
+                }
+            }
+        }
     }
     return 0;
 }
 
 // When not high as fuck, create a functional version of this using lambda functions and
 // a recursive function to handle the for loop logic
-int insertCharacter(std::vector<int> coords, int radius, const std::string color) {
-    // assume the coordinates are the middle of
-    // our character to create, size is the diameter  of the character
+int insertCharacter(std::vector<int> coords, int radius, const std::string color, const std::vector<int>& ignoreCoords = {}) {
     int centerX = coords[0];
     int centerY = coords[1];
     int d = 3 - 2 * radius;
@@ -352,10 +382,11 @@ int insertCharacter(std::vector<int> coords, int radius, const std::string color
 
     std::vector<int> circle = { coords[0], coords[1], radius };
 
-    if (checkCollision(circle))
+    if (checkCollision(circle, ignoreCoords)) {
+        log("Collision detected at (" + std::to_string(centerX) + ", " + std::to_string(centerY) + ")");
         return 0;
+    }
 
-    //changeGridPoint(coords[0], coords[1], color);
     while (y >= x) {
         changeGridPoint(centerX + x, centerY + y, color);
         changeGridPoint(centerX - x, centerY + y, color);
@@ -365,15 +396,90 @@ int insertCharacter(std::vector<int> coords, int radius, const std::string color
         changeGridPoint(centerX - y, centerY + x, color);
         changeGridPoint(centerX + y, centerY - x, color);
         changeGridPoint(centerX - y, centerY - x, color);
-    
+
         x++;
         if (d > 0) {
             y--;
             d = d + 4 * (x - y) + 10;
-        } else {
+        }
+        else {
             d = d + 4 * x + 6;
         }
     }
+    return 1;
+}
+
+void updateTroopMidpoint(SOCKET playerSocket, const std::vector<int>& oldMidpoint, const std::vector<int>& newMidpoint) {
+    std::lock_guard<std::mutex> lock(gameState.stateMutex);
+
+    auto it = gameState.player_states.find(playerSocket);
+    if (it == gameState.player_states.end()) {
+        log("Player not found in game state.");
+        return;
+    }
+
+    PlayerState& playerState = it->second;
+
+    for (auto& city : playerState.cities) {
+        for (auto& troop : city.troops) {
+            if (troop.midpoint == oldMidpoint) {
+                troop.midpoint = newMidpoint;
+                log("Troop midpoint updated from (" + std::to_string(oldMidpoint[0]) + ", " + std::to_string(oldMidpoint[1]) + ") to (" + std::to_string(newMidpoint[0]) + ", " + std::to_string(newMidpoint[1]) + ")");
+                return;
+            }
+        }
+    }
+
+    log("Troop with the specified midpoint not found.");
+}
+
+int moveCharacter(SOCKET playerSocket, Troop* troopToMove, const std::vector<int>& newCoords) {
+    if (!troopToMove || troopToMove->midpoint.size() < 2) {
+        log("Invalid troop to move.");
+        return 0;
+    }
+
+    int currentX = troopToMove->midpoint[0];
+    int currentY = troopToMove->midpoint[1];
+    int currentRad = troopToMove->size;
+    std::string currentColor = troopToMove->color;
+
+    std::vector<int> currentCoords = { currentX, currentY };
+
+    // Log current coordinates
+    log("Current troop coordinates: (" + std::to_string(currentX) + ", " + std::to_string(currentY) + ")");
+
+    // Temporarily set the troop's coordinates to an off-board value
+    troopToMove->midpoint[0] = -1;
+    troopToMove->midpoint[1] = -1;
+
+    // Remove the troop from the current position
+    if (!insertCharacter(currentCoords, currentRad, "#696969", currentCoords)) {
+        log("Failed to remove troop from current position.");
+        // Restore the original coordinates
+        troopToMove->midpoint = currentCoords;
+        return 0;
+    }
+
+    // Log after removal
+    log("Troop removed from current position.");
+
+    // Insert the troop at the new position
+    if (!insertCharacter(newCoords, currentRad, currentColor)) {
+        // Revert the removal if insertion fails
+        insertCharacter(currentCoords, currentRad, currentColor);
+        log("Failed to insert troop at new position.");
+        // Restore the original coordinates
+        troopToMove->midpoint = currentCoords;
+        return 0;
+    }
+
+    // Log after insertion
+    log("Troop inserted at new position: (" + std::to_string(newCoords[0]) + ", " + std::to_string(newCoords[1]) + ")");
+
+    // Update the troop's position in the global game state
+    updateTroopMidpoint(playerSocket, currentCoords, newCoords);
+
     return 1;
 }
 
@@ -435,6 +541,14 @@ void handlePlayerMessage(SOCKET clientSocket, const std::string& message) {
         }
     }
 
+    Troop* nearestTroop = findNearestTroop(player, coords);
+    if (nearestTroop && nearestTroop->midpoint.size() >= 2) {
+        log("Nearest troop midpoint: " + std::to_string(nearestTroop->midpoint[0]) + "," + std::to_string(nearestTroop->midpoint[1]));
+    }
+    else {
+        std::cerr << "Error: No valid nearest troop found." << std::endl;
+    }
+
     if (!nearestCity) {
         log("No valid city found for the player.");
         return;
@@ -446,11 +560,21 @@ void handlePlayerMessage(SOCKET clientSocket, const std::string& message) {
         return;
     }
 
+    if (characterType == "select") {
+        std::vector<int> newCoords = { x - 1 , y };
+        if (moveCharacter(clientSocket, nearestTroop, newCoords)) {
+            log("Troop moved successfully");
+            return;
+        }
+        log("failed to move troop");
+        return;
+    }
     // Decide what the player is trying to do now
     if (characterType == "coin") {
         if (isWithinRadius(coords, nearestCity->midpoint, 15)) {
-            nearestCity->coins += 1;
-            log("Coin collected. City now has " + std::to_string(nearestCity->coins) + " coins.");
+            player.coins++;
+            nearestCity->coins++;
+            log(std::to_string(player.coins) + " coins collected. City now has " + std::to_string(nearestCity->coins) + " coins.");
         }
     }
     else if (characterType == "troop") {
@@ -601,7 +725,7 @@ int main() {
     troopMap["Barbarian"] = { {}, 3, 100, 10, 1, 1, 15, 5, "red" };
 
     // Buildings
-    buildingMap["coinFarm"] = { {}, 5, 100, 5, 50, {}, 5, "green" };
+    buildingMap["coinFarm"] = { {}, 5, 100, 5, 50, {}, 5, "purple" };
 
     // NETWORK CONFIG
 #ifdef _WIN32
