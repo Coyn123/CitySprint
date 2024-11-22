@@ -1,8 +1,8 @@
 /* General settings */
 body {
-    font-family: 'Cinzel', serif;
-    background-color: #F5F5DC; /* Beige */
-    color: #2F4F4F; /* DarkSlateGray */
+    font-family: 'Press Start 2P', cursive;
+    background-color: #2c3e50; /* Dark Blue */
+    color: #ecf0f1; /* Light Gray */
     margin: 0;
     padding: 0;
     display: flex;
@@ -15,48 +15,49 @@ body {
 /* Header */
 header {
     width: 100%;
-    background-color: #8B4513; /* SaddleBrown */
-    color: #FFD700; /* Gold */
+    background-color: #1c2833; /* Darker Blue */
+    color: #d4ac0d; /* Gold */
     text-align: center;
     padding: 20px 0;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-    border-bottom: 3px solid #DAA520; /* GoldenRod */
+    border-bottom: 3px solid #d4ac0d; /* Gold */
 }
 
-header h1 {
-    margin: 0;
-}
+    header h1 {
+        margin: 0;
+    }
 
-header p {
-    margin: 5px 0 0;
-    font-size: 1.1em;
-}
+    header p {
+        margin: 5px 0 0;
+        font-size: 1.1em;
+    }
 
 /* Navigation bar */
 nav {
     width: 100%;
-    background-color: #8B4513; /* SaddleBrown */
-    color: #FFD700; /* Gold */
+    background-color: #1c2833; /* Darker Blue */
+    color: #d4ac0d; /* Gold */
     display: flex;
     justify-content: space-around;
     padding: 10px 0;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-nav button {
-    background-color: #4b5563; /* Gray */
-    color: #FFD700; /* Gold */
-    border: 2px solid #DAA520; /* GoldenRod */
-    border-radius: 5px;
-    padding: 10px;
-    cursor: pointer;
-    transition: background-color 0.3s, color 0.3s;
-}
+    nav button {
+        background-color: #2c3e50; /* Dark Blue */
+        color: #d4ac0d; /* Gold */
+        border: 2px solid #d4ac0d; /* Gold */
+        border-radius: 0;
+        padding: 10px;
+        cursor: pointer;
+        transition: background-color 0.3s, color 0.3s;
+        font-size: 0.8em;
+    }
 
-nav button:hover {
-    background-color: #DAA520; /* GoldenRod */
-    color: #8B4513; /* SaddleBrown */
-}
+        nav button:hover {
+            background-color: #d4ac0d; /* Gold */
+            color: #1c2833; /* Darker Blue */
+        }
 
 /* Main content area */
 .main-content {
@@ -71,21 +72,21 @@ nav button:hover {
 /* Sidebar */
 .sidebar {
     width: 25%;
-    background-color: #FFF8DC; /* Cornsilk */
+    background-color: #2c3e50; /* Dark Blue */
     padding: 20px;
-    border: 2px solid #DAA520; /* GoldenRod */
-    border-radius: 10px;
+    border: 2px solid #d4ac0d; /* Gold */
+    border-radius: 0;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
     margin: 0 20px;
 }
 
-.sidebar h2 {
-    margin-top: 0;
-}
+    .sidebar h2 {
+        margin-top: 0;
+    }
 
-.sidebar p {
-    margin: 10px 0;
-}
+    .sidebar p {
+        margin: 10px 0;
+    }
 
 .progress-bar-container {
     margin: 10px 0;
@@ -93,44 +94,44 @@ nav button:hover {
 
 .progress-bar {
     height: 20px;
-    background-color: #8B4513; /* SaddleBrown */
-    border-radius: 10px;
+    background-color: #1c2833; /* Darker Blue */
+    border-radius: 0;
     overflow: hidden;
 }
 
 .progress-bar-fill {
     height: 100%;
-    background-color: #DAA520; /* GoldenRod */
+    background-color: #d4ac0d; /* Gold */
     width: 75%; /* Example progress */
-    border-radius: 10px;
+    border-radius: 0;
 }
 
 /* Leaderboard */
 .leaderboard {
     margin-top: 20px;
-    background-color: #FFF8DC; /* Cornsilk */
+    background-color: #2c3e50; /* Dark Blue */
     padding: 10px;
-    border: 2px solid #DAA520; /* GoldenRod */
-    border-radius: 10px;
+    border: 2px solid #d4ac0d; /* Gold */
+    border-radius: 0;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
-.leaderboard h2 {
-    margin-top: 0;
-}
+    .leaderboard h2 {
+        margin-top: 0;
+    }
 
-.leaderboard ul {
-    list-style-type: none;
-    padding: 0;
-}
+    .leaderboard ul {
+        list-style-type: none;
+        padding: 0;
+    }
 
-.leaderboard li {
-    background-color: #8B4513; /* SaddleBrown */
-    color: #FFD700; /* Gold */
-    margin: 5px 0;
-    padding: 10px;
-    border-radius: 5px;
-}
+    .leaderboard li {
+        background-color: #1c2833; /* Darker Blue */
+        color: #d4ac0d; /* Gold */
+        margin: 5px 0;
+        padding: 10px;
+        border-radius: 0;
+    }
 
 /* Game area */
 .canvas-wrapper {
@@ -139,14 +140,14 @@ nav button:hover {
     justify-content: center;
     align-items: center;
     padding: 20px;
-    background-color: #8B4513; /* DarkOliveGreen - Grass */
-    border: 3px solid #DAA520; /* GoldenRod */
-    border-radius: 10px;
+    background-color: #1c2833; /* Darker Blue */
+    border: 3px solid #d4ac0d; /* Gold */
+    border-radius: 0;
 }
 
 canvas {
-    border: 2px solid #DAA520; /* GoldenRod */
-    background-color: #556B2F; /* DarkOliveGreen */
+    border: 2px solid #d4ac0d; /* Gold */
+    background-color: #2c3e50; /* Dark Blue */
     height: 600px;
     width: 800px;
 }
@@ -155,33 +156,35 @@ canvas {
 .button-container {
     display: flex;
     justify-content: center;
+    flex-wrap: wrap;
     margin: 20px 0;
 }
 
-.button-container button {
-    background-color: #8B4513; /* SaddleBrown */
-    color: #FFD700; /* Gold */
-    font-family: 'Cinzel', serif;
-    border: 2px solid #DAA520; /* GoldenRod */
-    border-radius: 5px;
-    padding: 10px 20px;
-    margin: 5px;
-    cursor: pointer;
-    transition: background-color 0.3s, color 0.3s;
-}
+    .button-container button {
+        background-color: #1c2833; /* Darker Blue */
+        color: #d4ac0d; /* Gold */
+        font-family: 'Press Start 2P', cursive;
+        border: 2px solid #d4ac0d; /* Gold */
+        border-radius: 0;
+        padding: 10px 20px;
+        margin: 5px;
+        cursor: pointer;
+        transition: background-color 0.3s, color 0.3s;
+        font-size: 0.8em;
+    }
 
-.button-container button:hover {
-    background-color: #DAA520; /* GoldenRod */
-    color: #8B4513; /* SaddleBrown */
-}
+        .button-container button:hover {
+            background-color: #d4ac0d; /* Gold */
+            color: #1c2833; /* Darker Blue */
+        }
 
 /* Footer */
 footer {
     width: 100%;
-    background-color: #8B4513; /* SaddleBrown */
-    color: #FFD700; /* Gold */
+    background-color: #1c2833; /* Darker Blue */
+    color: #d4ac0d; /* Gold */
     text-align: center;
     padding: 10px 0;
-    border-top: 3px solid #DAA520; /* GoldenRod */
+    border-top: 3px solid #d4ac0d; /* Gold */
     box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.1);
-}  
+}
