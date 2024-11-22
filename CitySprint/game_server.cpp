@@ -4,6 +4,7 @@ typedef int socklen_t;
 #include <winsock2.h>
 #include <windows.h>
 #pragma comment(lib, "ws2_32.lib")
+#undef max
 #else
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -28,6 +29,7 @@ typedef int socklen_t;
 #include <fstream>
 #include <openssl/sha.h>
 #include <unordered_map>
+#include <limits>
 
 #include "misc_lib.h"
 
@@ -419,31 +421,36 @@ void handlePlayerMessage(SOCKET clientSocket, const std::string& message) {
         return;
     }
 
-    std::string troopType = "Barbarian";
-
-    // Check if the action is within the allowed radius of the city
-    bool withinCityRadius = false;
-    for (const auto& city : player.cities) {
-        if (isWithinRadius(coords, city.midpoint, 100)) {
-            withinCityRadius = true;
-            break;
+    // Find the nearest city of the player
+    City* nearestCity = nullptr;
+    int minDistance = std::numeric_limits<int>::max();
+    for (auto& city : player.cities) {
+        if (city.midpoint.empty()) continue; // Skip uninitialized cities
+        int dx = coords[0] - city.midpoint[0];
+        int dy = coords[1] - city.midpoint[1];
+        int distance = dx * dx + dy * dy;
+        if (distance < minDistance) {
+            minDistance = distance;
+            nearestCity = &city;
         }
     }
 
-    if (!withinCityRadius) {
+    if (!nearestCity) {
+        log("No valid city found for the player.");
+        return;
+    }
+
+    // Check if the action is within the allowed radius of the nearest city
+    if (!isWithinRadius(coords, nearestCity->midpoint, 100)) {
         log("Action is outside the allowed radius of the city.");
         return;
     }
 
     // Decide what the player is trying to do now
     if (characterType == "coin") {
-        for (const auto& city : player.cities) {
-            if (isWithinRadius(coords, city.midpoint, 15)) {
-                int currentCoins = player.coins;
-                player.coins = currentCoins + 1;
-                log("Coin collected. Player now has " + std::to_string(player.coins) + " coins.");
-                break;
-            }
+        if (isWithinRadius(coords, nearestCity->midpoint, 15)) {
+            nearestCity->coins += 1;
+            log("Coin collected. City now has " + std::to_string(nearestCity->coins) + " coins.");
         }
     }
     else if (characterType == "troop") {
@@ -451,17 +458,16 @@ void handlePlayerMessage(SOCKET clientSocket, const std::string& message) {
             log("Not enough coins to create troop.");
             return;
         }
-        if (!insertCharacter(coords, troopMap[troopType].size, troopMap[troopType].color)) {
+        if (!insertCharacter(coords, troopMap["Barbarian"].size, troopMap["Barbarian"].color)) {
             log("Failed to insert troop character.");
             return;
         }
-        int currentCoins = player.coins;
-        player.coins = currentCoins - troopMap[troopType].cost;
+        player.coins -= troopMap["Barbarian"].cost;
         log("Troop created. Player now has " + std::to_string(player.coins) + " coins left.");
 
         Troop newTroop = troopMap["Barbarian"];
         newTroop.midpoint = { coords[0], coords[1] };
-        player.cities[0].troops.push_back(newTroop); // Ensure we are accessing the correct city
+        nearestCity->troops.push_back(newTroop);
     }
     else if (characterType == "building") {
         if (player.coins < buildingMap["coinFarm"].cost) {
@@ -472,13 +478,12 @@ void handlePlayerMessage(SOCKET clientSocket, const std::string& message) {
             log("Failed to insert building character.");
             return;
         }
-        int currentCoins = player.coins;
-        player.coins = currentCoins - buildingMap["coinFarm"].cost;
+        player.coins -= buildingMap["coinFarm"].cost;
         log("Building created. Player now has " + std::to_string(player.coins) + " coins left.");
 
         Building newBuilding = buildingMap["coinFarm"];
         newBuilding.midpoint = { coords[0], coords[1] };
-        player.cities[0].buildings.push_back(newBuilding); // Ensure we are accessing the correct city
+        nearestCity->buildings.push_back(newBuilding);
     }
     update_player_state(gameState, clientSocket, player);
     sendPlayerStateDeltaToClient(player);
@@ -493,6 +498,7 @@ void gameLogic(SOCKET clientSocket) {
     PlayerState player_state;
     player_state.socket = clientSocket;
     player_state.coins = 100; // Example initial state
+    player_state.phase = 0;    
 
     // Store the initial state in the GameState structure
     update_player_state(gameState, clientSocket, player_state);
