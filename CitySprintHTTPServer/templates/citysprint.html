@@ -10,44 +10,58 @@
 <body>
     <header>
         <h1>City Sprint</h1>
-        <p>Its definitely a skill issue</p>
+        <p>It's definitely a skill issue</p>
     </header>
-    <div class="main-content">
-        <div class="sidebar">
-            <h2>About the Game</h2>
-            <p>City Sprint is a strategic game where you build your empire, manage resources, and conquer territories.</p>
-            <h2>Instructions</h2>
-            <p>Use the buttons to select troops, buildings, or coins. Click on the game board to place your selected item.</p>
-            <h2>Player Stats</h2>
-            <p><strong>Score:</strong> 1200</p>
-            <p><strong>Level:</strong> 5</p>
-            <p><strong>Resources:</strong> 300 coins, 100 food</p>
-            <div class="progress-bar-container">
-                <p><strong>Experience:</strong></p>
-                <div class="progress-bar">
-                    <div class="progress-bar-fill" style="width: 75%;"></div> <!-- Example percentage -->
+    <nav>
+        <div class="nav-right">
+            <div class="dropdown">
+                <button class="dropbtn">Game Info</button>
+                <div class="dropdown-content">
+                    <h2>About the Game</h2>
+                    <p>City Sprint is a strategic game where you build your empire, manage resources, and conquer territories.</p>
+                    <h2>Instructions</h2>
+                    <p>Use the buttons to select troops, buildings, or coins. Click on the game board to place your selected item.</p>
+                </div>
+            </div>
+            <div class="dropdown">
+                <button class="dropbtn">Player Stats</button>
+                <div class="dropdown-content">
+                    <p><strong>Score:</strong> 1200</p>
+                    <p><strong>Level:</strong> 5</p>
+                    <p><strong>Resources:</strong> 300 coins, 100 food</p>
+                    <div class="progress-bar-container">
+                        <p><strong>Experience:</strong></p>
+                        <div class="progress-bar">
+                            <div class="progress-bar-fill" style="width: 75%;"></div> <!-- Example percentage -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="dropdown">
+                <button class="dropbtn">Leaderboard</button>
+                <div class="dropdown-content">
+                    <h2>Leaderboard</h2>
+                    <ul>
+                        <li>Player1 - 1500 pts</li>
+                        <li>Player2 - 1300 pts</li>
+                        <li>Player3 - 1100 pts</li>
+                    </ul>
                 </div>
             </div>
         </div>
-        <div class="canvas-wrapper">
-            <canvas id="gameCanvas" width="800" height="600"></canvas>
-        </div>
-        <div class="sidebar">
-            <div class="leaderboard">
-                <h2>Leaderboard</h2>
-                <ul>
-                    <li>Player1 - 1500 pts</li>
-                    <li>Player2 - 1300 pts</li>
-                    <li>Player3 - 1100 pts</li>
-                </ul>
-            </div>
-            <div class="button-container">
+    </nav>
+    <div class="main-content">
+        <aside class="sidebar left-sidebar">
+            <div class="button-group">
                 <button id="coinButton" onclick="setCharacterType(this)">Coin</button>
                 <button id="troopButton" onclick="setCharacterType(this)">Troop</button>
                 <button id="buildingButton" onclick="setCharacterType(this)">Building</button>
                 <button id="cityButton" onclick="setCharacterType(this)">City</button>
                 <button id="selectButton" onclick="setCharacterType(this)">Select</button>
             </div>
+        </aside>
+        <div class="canvas-wrapper">
+            <canvas id="gameCanvas" width="800" height="600"></canvas>
         </div>
     </div>
     <footer>
