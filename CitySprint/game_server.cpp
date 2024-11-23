@@ -34,6 +34,23 @@ typedef int socklen_t;
 
 #include "misc_lib.h"
 
+// Setup cross-platform libraries above
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ // Setting up our constants, function prototypes, and structures below 
+
 // Constants
 const int BOARD_WIDTH = 800;
 const int BOARD_HEIGHT = 600;
@@ -98,6 +115,22 @@ struct GameState {
     std::mutex stateMutex;
 };
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Declaring our global variables for the game
+
 GameState gameState;
 std::map<SOCKET, sockaddr_in> clients;
 std::ofstream logFile("./log/log.txt", std::ios::out | std::ios::app);
@@ -106,6 +139,23 @@ std::map<std::string, Troop> troopMap;
 std::map<std::string, Building> buildingMap;
 
 std::mutex clientsMutex;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 void log(const std::string& message) {
     std::cout << message << std::endl;
@@ -116,6 +166,20 @@ int generateUniqueId() {
     static int id = 0;
     return id++;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 void update_player_state(GameState& game_state, SOCKET socket, const PlayerState& state) {
     std::lock_guard<std::mutex> lock(game_state.mtx);
@@ -131,6 +195,27 @@ void remove_player(GameState& game_state, SOCKET socket) {
     std::lock_guard<std::mutex> lock(game_state.mtx);
     game_state.player_states.erase(socket);
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // Initialize game board with empty tiles
 void initializeGameState() {
@@ -152,48 +237,26 @@ void initializeGameState() {
     log("Game state initialized with " + std::to_string(rows) + " rows and " + std::to_string(cols) + " columns.");
 }
 
-int drawCircle(int (*func)(int, int, const std::string), int x, int y, int radius, const std::string color) {
-    int centerX = x;
-    int centerY = y;
-    int d = 3 - 1 * radius;
-    y = radius;
-    x = 0;
 
-    while (y >= x) {
-        func(centerX + x, centerY + y, color);
-        func(centerX - x, centerY + y, color);
-        func(centerX + x, centerY - y, color);
-        func(centerX - x, centerY - y, color);
-        func(centerX + y, centerY + x, color);
-        func(centerX - y, centerY + x, color);
-        func(centerX + y, centerY - x, color);
-        func(centerX - y, centerY - x, color);
 
-        if (d <= 0) {
-            d += 4 * x + 6;
-        }
-        else {
-            d += 4 * (x - y) + 10;
-            y--;
-        }
-        x++;
-    }
-    return 0;
-}
 
-int changeGridPoint(int x, int y, const std::string color) {
-    std::lock_guard<std::mutex> lock(gameState.stateMutex);
 
-    if (x >= 0 && x < BOARD_WIDTH / TILE_SIZE && y >= 0 && y < BOARD_HEIGHT / TILE_SIZE) {
-        gameState.board[y][x] = color;
-        gameState.changedTiles.push_back({ x, y, color });
-    }
-    else {
-        log("Invalid grid point (" + std::to_string(x) + ", " + std::to_string(y) + "). No changes made.");
-        return 1;
-    }
-    return 0;
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 std::string serializePlayerStateToString(const PlayerState& player) {
     std::string result;
@@ -260,6 +323,93 @@ void temporarilyRemoveTroopFromGameState(Troop* troop) {
     troop->midpoint[1] = -1;
 }
 
+void clearCollidingEntities() {
+    std::lock_guard<std::mutex> lock(gameState.stateMutex);
+
+    for (auto& playerPair : gameState.player_states) {
+        PlayerState& player = playerPair.second;
+        for (auto& city : player.cities) {
+            city.collidingEntities.clear();
+            for (auto& troop : city.troops) {
+                troop.collidingEntities.clear();
+            }
+            for (auto& building : city.buildings) {
+                building.collidingEntities.clear();
+            }
+        }
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Functionality for interacting with circles, will organize more in the morning
+
+
+int drawCircle(int (*func)(int, int, const std::string), int x, int y, int radius, const std::string color) {
+    int centerX = x;
+    int centerY = y;
+    int d = 3 - 1 * radius;
+    y = radius;
+    x = 0;
+
+    while (y >= x) {
+        func(centerX + x, centerY + y, color);
+        func(centerX - x, centerY + y, color);
+        func(centerX + x, centerY - y, color);
+        func(centerX - x, centerY - y, color);
+        func(centerX + y, centerY + x, color);
+        func(centerX - y, centerY + x, color);
+        func(centerX + y, centerY - x, color);
+        func(centerX - y, centerY - x, color);
+
+        if (d <= 0) {
+            d += 4 * x + 6;
+        }
+        else {
+            d += 4 * (x - y) + 10;
+            y--;
+        }
+        x++;
+    }
+    return 0;
+}
+
+
+
+
+int changeGridPoint(int x, int y, const std::string color) {
+    std::lock_guard<std::mutex> lock(gameState.stateMutex);
+
+    if (x >= 0 && x < BOARD_WIDTH / TILE_SIZE && y >= 0 && y < BOARD_HEIGHT / TILE_SIZE) {
+        gameState.board[y][x] = color;
+        gameState.changedTiles.push_back({ x, y, color });
+    }
+    else {
+        log("Invalid grid point (" + std::to_string(x) + ", " + std::to_string(y) + "). No changes made.");
+        return 1;
+    }
+    return 0;
+}
+
+
+
+
 int isColliding(std::vector<int> circleOne, std::vector<int> circleTwo) {
     int xOne = circleOne[0];
     int yOne = circleOne[1];
@@ -279,6 +429,9 @@ int isColliding(std::vector<int> circleOne, std::vector<int> circleTwo) {
         return 1;
     return 0;
 }
+
+
+
 
 std::shared_ptr<Troop> findNearestTroop(PlayerState& player, const std::vector<int>& coords) {
     std::shared_ptr<Troop> nearestTroop = nullptr;
@@ -301,6 +454,9 @@ std::shared_ptr<Troop> findNearestTroop(PlayerState& player, const std::vector<i
     return nearestTroop;
 }
 
+
+
+
 bool isWithinRadius(const std::vector<int>& point, const std::vector<int>& center, int radius) {
     if (point.size() < 2 || center.size() < 2) {
         log("Invalid point or center size. Point size: " + std::to_string(point.size()) + ", Center size: " + std::to_string(center.size()));
@@ -321,6 +477,9 @@ bool isWithinRadius(const std::vector<int>& point, const std::vector<int>& cente
 
     return withinRadius;
 }
+
+
+
 
 int checkCollision(const std::vector<int>& circleOne, int ignoreId = -1) {
     std::lock_guard<std::mutex> lock(gameState.stateMutex);
@@ -371,6 +530,9 @@ int checkCollision(const std::vector<int>& circleOne, int ignoreId = -1) {
     return 0;
 }
 
+
+
+
 // When not high as fuck, create a functional version of this using lambda functions and
 // a recursive function to handle the for loop logic
 int insertCharacter(std::vector<int> coords, int radius, const std::string color, int ignoreId = -1) {
@@ -411,6 +573,9 @@ int insertCharacter(std::vector<int> coords, int radius, const std::string color
     return 1;
 }
 
+
+
+
 void updateEntityMidpoint(SOCKET playerSocket, const std::vector<int>& oldMidpoint, const std::vector<int>& newMidpoint) {
     std::lock_guard<std::mutex> lock(gameState.stateMutex);
 
@@ -444,22 +609,8 @@ void updateEntityMidpoint(SOCKET playerSocket, const std::vector<int>& oldMidpoi
     log("Entity with the specified midpoint not found.");
 }
 
-void clearCollidingEntities() {
-    std::lock_guard<std::mutex> lock(gameState.stateMutex);
 
-    for (auto& playerPair : gameState.player_states) {
-        PlayerState& player = playerPair.second;
-        for (auto& city : player.cities) {
-            city.collidingEntities.clear();
-            for (auto& troop : city.troops) {
-                troop.collidingEntities.clear();
-            }
-            for (auto& building : city.buildings) {
-                building.collidingEntities.clear();
-            }
-        }
-    }
-}
+
 
 void applyDamageToCollidingEntities(SOCKET playerSocket, CollidableEntity* movingEntity) {
     std::lock_guard<std::mutex> lock(gameState.stateMutex);
@@ -505,6 +656,9 @@ void applyDamageToCollidingEntities(SOCKET playerSocket, CollidableEntity* movin
     }
 }
 
+
+
+
 void checkForCollidingTroops() {
     std::lock_guard<std::mutex> lock(gameState.stateMutex);
     
@@ -517,6 +671,26 @@ void checkForCollidingTroops() {
         }
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Character movement functionality below 
 
 bool moveCharacter(SOCKET playerSocket, CollidableEntity* entityToMove, const std::vector<int>& newCoords) {
     if (!entityToMove || entityToMove->midpoint.size() < 2) {
@@ -566,6 +740,9 @@ bool moveCharacter(SOCKET playerSocket, CollidableEntity* entityToMove, const st
     return true;
 }
 
+
+
+
 void moveTroopToPosition(SOCKET playerSocket, std::shared_ptr<Troop> troop, const std::vector<int>& targetCoords) {
     while (troop->midpoint != targetCoords) {
         std::vector<int> currentCoords = troop->midpoint;
@@ -590,6 +767,29 @@ void moveTroopToPosition(SOCKET playerSocket, std::shared_ptr<Troop> troop, cons
         std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Adjust the delay as needed
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Functionality for most of the networking stuff below here
+
 
 // Function to handle messages from a client
 void handlePlayerMessage(SOCKET clientSocket, const std::string& message) {
@@ -781,6 +981,9 @@ void handlePlayerMessage(SOCKET clientSocket, const std::string& message) {
     sendPlayerStateDeltaToClient(player);
 }
 
+
+
+
 // Threaded client handling function
 void gameLogic(SOCKET clientSocket) {
     char buffer[512];
@@ -808,6 +1011,9 @@ void gameLogic(SOCKET clientSocket) {
     }
     log("Client disconnected.");
 }
+
+
+
 
 // Handle WebSocket handshake
 void handleWebSocketHandshake(SOCKET clientSocket, const std::string& request) {
@@ -846,6 +1052,41 @@ void handleWebSocketHandshake(SOCKET clientSocket, const std::string& request) {
     }
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // Accept new client connections
 void acceptPlayer(SOCKET serverSocket) {
     sockaddr_in clientAddr;
@@ -878,6 +1119,42 @@ void acceptPlayer(SOCKET serverSocket) {
     }
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// This is the more global game loop running in the background, currently facing race condition problems
 void boardLoop() {
     while (true) {
         clearCollidingEntities(); // Clear previous collisions
@@ -910,6 +1187,38 @@ void boardLoop() {
         std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Adjust the delay to match troop movement speed
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 int main() {
     // SETUP OUR MAPS
