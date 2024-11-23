@@ -622,6 +622,30 @@ void handlePlayerMessage(SOCKET clientSocket, const std::string& message) {
 
     if (player.phase == 0) {
         log("Player has no cities.");
+
+        // Check if the new city is within 100 tiles of any existing city
+        bool tooClose = false;
+        for (const auto& playerPair : gameState.player_states) {
+            const PlayerState& otherPlayer = playerPair.second;
+            for (const auto& city : otherPlayer.cities) {
+                if (!city.midpoint.empty()) {
+                    int dx = coords[0] - city.midpoint[0];
+                    int dy = coords[1] - city.midpoint[1];
+                    int distanceSquared = dx * dx + dy * dy;
+                    if (distanceSquared < 100 * 100) {
+                        tooClose = true;
+                        break;
+                    }
+                }
+            }
+            if (tooClose) break;
+        }
+
+        if (tooClose) {
+            log("Cannot create city within 100 tiles of another city.");
+            return;
+        }
+
         if (insertCharacter(coords, 15, "yellow")) {
             City newCity;
             newCity.midpoint = { coords[0], coords[1] };
@@ -659,7 +683,7 @@ void handlePlayerMessage(SOCKET clientSocket, const std::string& message) {
     // Check if the coordinates are within the radius of a city plus an additional 15 tiles
     bool withinCityRadius = false;
     for (const auto& city : player.cities) {
-        if (isWithinRadius(coords, city.midpoint, city.size + 15)) {
+        if (isWithinRadius(coords, city.midpoint, city.size + 30)) {
             withinCityRadius = true;
             break;
         }
