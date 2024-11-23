@@ -93,7 +93,8 @@ struct PlayerState {
     SOCKET socket;
     int phase{};
     int coins{};
-    City cities[2]; // Correctly declare cities as an array of City objects
+    City cities[2];
+    std::shared_ptr<Troop> selectedTroop = nullptr; // Change to shared_ptr
 };
 
 // Global Game State
@@ -151,7 +152,7 @@ void initializeGameState() {
             tile.x = x;
             tile.y = y;
             tile.color = "#696969";
-            
+
             gameState.board[y][x] = tile.color;
             gameState.changedTiles.push_back(tile);
         }
@@ -233,7 +234,8 @@ std::string serializeGameStateToString() {
                 result += std::to_string(x) + "," + std::to_string(y) + "," + gameState.board[y][x] + ";";
             }
         }
-    } else {
+    }
+    else {
         for (const auto& tile : gameState.changedTiles) {
             result += std::to_string(tile.x) + "," + std::to_string(tile.y) + "," + tile.color + ";";
         }
@@ -243,7 +245,7 @@ std::string serializeGameStateToString() {
 }
 
 // Function to send game state updates to all clients
-void sendGameStateDeltasToClients() { 
+void sendGameStateDeltasToClients() {
     if (gameState.changedTiles.empty()) {
         return;
     }
@@ -266,7 +268,6 @@ void temporarilyRemoveTroopFromGameState(Troop* troop) {
     troop->midpoint[1] = -1;
 }
 
-// Come back to this immediately after refactoring to put the circle logic outside of the 
 int isColliding(std::vector<int> circleOne, std::vector<int> circleTwo) {
     int xOne = circleOne[0];
     int yOne = circleOne[1];
@@ -281,14 +282,14 @@ int isColliding(std::vector<int> circleOne, std::vector<int> circleTwo) {
     int requiredDistance = radOne + radTwo;
 
     int actualDistance = squareRoot(static_cast<double>(xResult + yResult));
-    
+
     if (actualDistance < requiredDistance)
         return 1;
     return 0;
 }
 
-Troop* findNearestTroop(PlayerState& player, const std::vector<int>& coords) {
-    Troop* nearestTroop = nullptr;
+std::shared_ptr<Troop> findNearestTroop(PlayerState& player, const std::vector<int>& coords) {
+    std::shared_ptr<Troop> nearestTroop = nullptr;
     int minDistance = std::numeric_limits<int>::max();
 
     for (auto& city : player.cities) {
@@ -300,7 +301,7 @@ Troop* findNearestTroop(PlayerState& player, const std::vector<int>& coords) {
             int distance = dx * dx + dy * dy;
             if (distance < minDistance) {
                 minDistance = distance;
-                nearestTroop = &troop;
+                nearestTroop = std::make_shared<Troop>(troop);
             }
         }
     }
@@ -427,9 +428,10 @@ void updateTroopMidpoint(SOCKET playerSocket, const std::vector<int>& oldMidpoin
 
     for (auto& city : playerState.cities) {
         for (auto& troop : city.troops) {
-            if (troop.midpoint == oldMidpoint) {
+            log("Checking troop at (" + std::to_string(troop.midpoint[0]) + ", " + std::to_string(troop.midpoint[1]) + ")");
+            if (troop.midpoint.size() == oldMidpoint.size() && std::equal(troop.midpoint.begin(), troop.midpoint.end(), oldMidpoint.begin())) {
+                log("Updating troop midpoint from (" + std::to_string(oldMidpoint[0]) + ", " + std::to_string(oldMidpoint[1]) + ") to (" + std::to_string(newMidpoint[0]) + ", " + std::to_string(newMidpoint[1]) + ")");
                 troop.midpoint = newMidpoint;
-                log("Troop midpoint updated from (" + std::to_string(oldMidpoint[0]) + ", " + std::to_string(oldMidpoint[1]) + ") to (" + std::to_string(newMidpoint[0]) + ", " + std::to_string(newMidpoint[1]) + ")");
                 return;
             }
         }
@@ -452,28 +454,26 @@ bool moveCharacter(SOCKET playerSocket, Troop* troopToMove, const std::vector<in
 
     std::vector<int> currentCoords = { currentX, currentY };
 
-    // Temporarily remove the troop from the global game state
-    temporarilyRemoveTroopFromGameState(troopToMove);
-
-    // Clear the old position on the board
-    insertCharacter(currentCoords, radius, "#696969", troopId);
+    log("Moving troop from (" + std::to_string(currentX) + ", " + std::to_string(currentY) + ") to (" + std::to_string(newCoords[0]) + ", " + std::to_string(newCoords[1]) + ")");
 
     // Check for collision at the new coordinates
     std::vector<int> newCircle = { newCoords[0], newCoords[1], radius };
     if (checkCollision(newCircle, troopId)) {
         log("Collision detected at (" + std::to_string(newCoords[0]) + ", " + std::to_string(newCoords[1]) + ")");
-        // Reinsert the troop at the original position if collision detected
-        insertCharacter(currentCoords, radius, color, troopId);
-        // Restore the original coordinates in the global game state
-        troopToMove->midpoint = currentCoords;
         return false;
     }
+
+    // Clear the old position on the board
+    insertCharacter(currentCoords, radius, "#696969", troopId);
 
     // Insert the troop at the new position
     insertCharacter(newCoords, radius, color, troopId);
 
     // Update the troop's position in the global game state
     updateTroopMidpoint(playerSocket, currentCoords, newCoords);
+
+    // Update the troop's midpoint in the local troop object
+    troopToMove->midpoint = newCoords;
 
     // Add the changed tiles to the changedTiles vector
     {
@@ -488,6 +488,31 @@ bool moveCharacter(SOCKET playerSocket, Troop* troopToMove, const std::vector<in
     return true;
 }
 
+void moveTroopToPosition(SOCKET playerSocket, std::shared_ptr<Troop> troop, const std::vector<int>& targetCoords) {
+    while (troop->midpoint != targetCoords) {
+        std::vector<int> currentCoords = troop->midpoint;
+        std::vector<int> nextCoords = currentCoords;
+
+        if (currentCoords[0] < targetCoords[0]) nextCoords[0]++;
+        else if (currentCoords[0] > targetCoords[0]) nextCoords[0]--;
+
+        if (currentCoords[1] < targetCoords[1]) nextCoords[1]++;
+        else if (currentCoords[1] > targetCoords[1]) nextCoords[1]--;
+
+        log("Attempting to move troop from (" + std::to_string(currentCoords[0]) + ", " + std::to_string(currentCoords[1]) + ") to (" + std::to_string(nextCoords[0]) + ", " + std::to_string(nextCoords[1]) + ")");
+
+        if (!moveCharacter(playerSocket, troop.get(), nextCoords)) {
+            log("Failed to move troop to (" + std::to_string(nextCoords[0]) + ", " + std::to_string(nextCoords[1]) + ")");
+            return;
+        }
+
+        // Log the updated midpoint after each move
+        log("Troop moved to (" + std::to_string(troop->midpoint[0]) + ", " + std::to_string(troop->midpoint[1]) + ")");
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Adjust the delay as needed
+    }
+}
+
 // Function to handle messages from a client
 void handlePlayerMessage(SOCKET clientSocket, const std::string& message) {
     log("Handling client message: " + message);
@@ -496,8 +521,6 @@ void handlePlayerMessage(SOCKET clientSocket, const std::string& message) {
     std::vector<std::string> segments;
 
     PlayerState player = get_player_state(gameState, clientSocket);
-
-    log("Handling player message: " + message);
 
     while (std::getline(iss, segment, ',')) {
         segments.push_back(segment);
@@ -512,8 +535,6 @@ void handlePlayerMessage(SOCKET clientSocket, const std::string& message) {
     int y = std::stoi(segments[1]);
     std::string color = segments[2];
     std::string characterType = segments[3];
-
-    log("Parsed message: x = " + std::to_string(x) + ", y = " + std::to_string(y) + ", color = " + color + ", characterType = " + characterType);
 
     std::vector<int> coords = { x, y };
 
@@ -532,51 +553,41 @@ void handlePlayerMessage(SOCKET clientSocket, const std::string& message) {
         return;
     }
 
-    // Find the nearest city of the player
-    City* nearestCity = nullptr;
-    int minDistance = std::numeric_limits<int>::max();
-    for (auto& city : player.cities) {
-        if (city.midpoint.empty()) continue; // Skip uninitialized cities
-        int dx = coords[0] - city.midpoint[0];
-        int dy = coords[1] - city.midpoint[1];
-        int distance = dx * dx + dy * dy;
-        if (distance < minDistance) {
-            minDistance = distance;
-            nearestCity = &city;
-        }
-    }
-
-    Troop* nearestTroop = findNearestTroop(player, coords);
-    if (nearestTroop && nearestTroop->midpoint.size() >= 2) {
-        log("Nearest troop midpoint: " + std::to_string(nearestTroop->midpoint[0]) + "," + std::to_string(nearestTroop->midpoint[1]));
-    }
-    else {
-        std::cerr << "Error: No valid nearest troop found." << std::endl;
-    }
-
-    if (!nearestCity) {
-        log("No valid city found for the player.");
-        return;
-    }
-
-    // Check if the action is within the allowed radius of the nearest city
-    if (characterType != "select" && !isWithinRadius(coords, nearestCity->midpoint, 100)) {
-        log("Action is outside the allowed radius of the city.");
-        return;
-    }
-
     if (characterType == "select") {
-        std::vector<int> newCoords = { x - 1 , y };
-        if (moveCharacter(clientSocket, nearestTroop, newCoords)) {
-            log("Troop moved successfully");
-            return;
+        std::shared_ptr<Troop> nearestTroop = findNearestTroop(player, coords);
+        if (nearestTroop && isWithinRadius(coords, nearestTroop->midpoint, nearestTroop->size)) {
+            player.selectedTroop = nearestTroop;
+            log("Troop selected at (" + std::to_string(nearestTroop->midpoint[0]) + ", " + std::to_string(nearestTroop->midpoint[1]) + ")");
         }
-        log("failed to move troop");
+        else {
+            log("No troop found at the selected position.");
+        }
+        update_player_state(gameState, clientSocket, player);
         return;
     }
-    // Decide what the player is trying to do now
+
+    if (characterType == "move" && player.selectedTroop) {
+        std::thread(moveTroopToPosition, clientSocket, player.selectedTroop, coords).detach();
+        player.selectedTroop = nullptr; // Deselect the troop after starting the movement
+        update_player_state(gameState, clientSocket, player);
+        return;
+    }
+
+    // Existing code for handling other character types (coin, troop, building)
     if (characterType == "coin") {
-        if (isWithinRadius(coords, nearestCity->midpoint, 15)) {
+        City* nearestCity = nullptr;
+        int minDistance = std::numeric_limits<int>::max();
+        for (auto& city : player.cities) {
+            if (city.midpoint.empty()) continue; // Skip uninitialized cities
+            int dx = coords[0] - city.midpoint[0];
+            int dy = coords[1] - city.midpoint[1];
+            int distance = dx * dx + dy * dy;
+            if (distance < minDistance) {
+                minDistance = distance;
+                nearestCity = &city;
+            }
+        }
+        if (nearestCity && isWithinRadius(coords, nearestCity->midpoint, 15)) {
             player.coins++;
             nearestCity->coins++;
             log(std::to_string(player.coins) + " coins collected. City now has " + std::to_string(nearestCity->coins) + " coins.");
@@ -597,7 +608,21 @@ void handlePlayerMessage(SOCKET clientSocket, const std::string& message) {
         Troop newTroop = troopMap["Barbarian"];
         newTroop.id = generateUniqueId(); // Assign a unique ID to the new troop
         newTroop.midpoint = { coords[0], coords[1] };
-        nearestCity->troops.push_back(newTroop);
+        City* nearestCity = nullptr;
+        int minDistance = std::numeric_limits<int>::max();
+        for (auto& city : player.cities) {
+            if (city.midpoint.empty()) continue; // Skip uninitialized cities
+            int dx = coords[0] - city.midpoint[0];
+            int dy = coords[1] - city.midpoint[1];
+            int distance = dx * dx + dy * dy;
+            if (distance < minDistance) {
+                minDistance = distance;
+                nearestCity = &city;
+            }
+        }
+        if (nearestCity) {
+            nearestCity->troops.push_back(newTroop);
+        }
     }
     else if (characterType == "building") {
         if (player.coins < buildingMap["coinFarm"].cost) {
@@ -613,7 +638,21 @@ void handlePlayerMessage(SOCKET clientSocket, const std::string& message) {
 
         Building newBuilding = buildingMap["coinFarm"];
         newBuilding.midpoint = { coords[0], coords[1] };
-        nearestCity->buildings.push_back(newBuilding);
+        City* nearestCity = nullptr;
+        int minDistance = std::numeric_limits<int>::max();
+        for (auto& city : player.cities) {
+            if (city.midpoint.empty()) continue; // Skip uninitialized cities
+            int dx = coords[0] - city.midpoint[0];
+            int dy = coords[1] - city.midpoint[1];
+            int distance = dx * dx + dy * dy;
+            if (distance < minDistance) {
+                minDistance = distance;
+                nearestCity = &city;
+            }
+        }
+        if (nearestCity) {
+            nearestCity->buildings.push_back(newBuilding);
+        }
     }
     update_player_state(gameState, clientSocket, player);
     sendPlayerStateDeltaToClient(player);
@@ -628,7 +667,7 @@ void gameLogic(SOCKET clientSocket) {
     PlayerState player_state;
     player_state.socket = clientSocket;
     player_state.coins = 100; // Example initial state
-    player_state.phase = 0;    
+    player_state.phase = 0;
 
     // Store the initial state in the GameState structure
     update_player_state(gameState, clientSocket, player_state);
@@ -648,13 +687,12 @@ void gameLogic(SOCKET clientSocket) {
 }
 
 // Handle WebSocket handshake
-// Function to handle WebSocket handshake
 void handleWebSocketHandshake(SOCKET clientSocket, const std::string& request) {
     std::istringstream requestStream(request);
     std::string line;
     std::string webSocketKey;
 
-  while (std::getline(requestStream, line) && line != "\r") {
+    while (std::getline(requestStream, line) && line != "\r") {
         if (line.find("Sec-WebSocket-Key") != std::string::npos) {
             webSocketKey = line.substr(line.find(":") + 2);
             webSocketKey = webSocketKey.substr(0, webSocketKey.length() - 1);

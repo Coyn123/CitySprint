@@ -3,6 +3,7 @@ const context = canvas.getContext('2d');
 const tileSize = 2; // Update the tileSize to match server
 let gameMatrix = []; // Initialize the game matrix
 let selectedCharacterType = "coin";
+let selectedTroop = null;
 
 const fullscrBtn = document.getElementById('fullscreenBtn');
 
@@ -18,6 +19,9 @@ ws.onopen = function (event) {
 
 function setCharacterType(button) {
     selectedCharacterType = button.textContent.toLowerCase();
+    if (selectedCharacterType !== 'select') {
+        selectedTroop = null; // Deselect any selected troop if not in select mode
+    }
     console.log("Character type selected: ", selectedCharacterType);
 }
 
@@ -48,7 +52,7 @@ function goFullScreen() {
 }
 
 function clearBoard() {
-    changeGridPoint(1000, 1000, "white", null); 
+    changeGridPoint(1000, 1000, "white", null);
     window.location.reload();
 }
 
@@ -60,15 +64,35 @@ canvas.addEventListener("click", (e) => {
     const col = Math.floor(x / tileSize);
     const row = Math.floor(y / tileSize);
 
-    changeGridPoint(col, row, "white", selectedCharacterType);
+    if (selectedCharacterType === 'select') {
+        selectTroop(col, row);
+    } else if (selectedCharacterType === 'move' && selectedTroop) {
+        moveTroop(col, row);
+    } else {
+        changeGridPoint(col, row, "white", selectedCharacterType);
+    }
 });
 
+function selectTroop(x, y) {
+    sendMessageToServer(x, y, 'select');
+    selectedCharacterType = 'move'; // Switch to move mode after selecting a troop
+}
+
+function moveTroop(x, y) {
+    sendMessageToServer(x, y, 'move');
+    selectedCharacterType = 'select'; // Switch back to select mode after moving the troop
+}
+
 function changeGridPoint(x, y, color) {
-    // POOPY UPDATE!!s
     const message = `${x},${y},${color},${selectedCharacterType}`;
-    // stinky ass
     ws.send(message);
     console.log(`Sent message to change grid point (${x}, ${y}) to char ${selectedCharacterType} with color ${color}`);
+}
+
+function sendMessageToServer(x, y, type) {
+    const message = `${x},${y},#000000,${type}`;
+    console.log(`Sending message to server: ${message}`);
+    ws.send(message);
 }
 
 function handleServerMessage(event) {
@@ -85,7 +109,6 @@ function handleServerMessage(event) {
             if (x !== undefined && y !== undefined && color !== undefined) {
                 const xPos = parseInt(x);
                 const yPos = parseInt(y);
-                //console.log(`Updating tile at (${xPos}, ${yPos}) to color ${color}`); // Debugging
 
                 // Update the game matrix
                 if (!gameMatrix[yPos]) {
@@ -100,7 +123,6 @@ function handleServerMessage(event) {
             }
         }
     });
-    //console.log("Updated game state: ", JSON.stringify(gameMatrix, null, 2)); // Debugging
 }
 
 // Initial setup to clear the canvas and fill with an initial color if needed
