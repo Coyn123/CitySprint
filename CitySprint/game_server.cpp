@@ -30,6 +30,7 @@ typedef int socklen_t;
 #include <openssl/sha.h>
 #include <unordered_map>
 #include <limits>
+#include <future>
 
 #include "misc_lib.h"
 
@@ -880,18 +881,31 @@ void acceptPlayer(SOCKET serverSocket) {
 void boardLoop() {
     while (true) {
         clearCollidingEntities(); // Clear previous collisions
+
+        std::vector<std::future<void>> futures;
+
         for (auto& playerPair : gameState.player_states) {
             PlayerState& player = playerPair.second;
-            for (auto& city : player.cities) {
-                applyDamageToCollidingEntities(player.socket, &city);
-                for (auto& troop : city.troops) {
-                    applyDamageToCollidingEntities(player.socket, &troop);
+
+            // Launch a task for each player to apply damage to colliding entities
+            futures.push_back(std::async(std::launch::async, [&player]() {
+                for (auto& city : player.cities) {
+                    applyDamageToCollidingEntities(player.socket, &city);
+                    for (auto& troop : city.troops) {
+                        applyDamageToCollidingEntities(player.socket, &troop);
+                    }
+                    for (auto& building : city.buildings) {
+                        applyDamageToCollidingEntities(player.socket, &building);
+                    }
                 }
-                for (auto& building : city.buildings) {
-                    applyDamageToCollidingEntities(player.socket, &building);
-                }
-            }
+                }));
         }
+
+        // Wait for all tasks to complete
+        for (auto& future : futures) {
+            future.get();
+        }
+
         sendGameStateDeltasToClients();
         std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Adjust the delay to match troop movement speed
     }
@@ -899,7 +913,7 @@ void boardLoop() {
 
 int main() {
     // SETUP OUR MAPS
-// Troops
+    // Troops
     troopMap["Barbarian"] = {
         generateUniqueId(), // id
         {0, 0}, // midpoint
