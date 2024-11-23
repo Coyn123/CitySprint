@@ -656,6 +656,20 @@ void handlePlayerMessage(SOCKET clientSocket, const std::string& message) {
         return;
     }
 
+    // Check if the coordinates are within the radius of a city plus an additional 15 tiles
+    bool withinCityRadius = false;
+    for (const auto& city : player.cities) {
+        if (isWithinRadius(coords, city.midpoint, city.size + 15)) {
+            withinCityRadius = true;
+            break;
+        }
+    }
+
+    if (!withinCityRadius) {
+        log("Cannot create " + characterType + " outside the radius of a city.");
+        return;
+    }
+
     // Existing code for handling other character types (coin, troop, building)
     if (characterType == "coin") {
         City* nearestCity = nullptr;
