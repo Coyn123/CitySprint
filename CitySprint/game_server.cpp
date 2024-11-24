@@ -61,6 +61,8 @@ void handlePlayerMessage(SOCKET clientSocket, const std::string& message);
 void gameLogic(SOCKET clientSocket);
 void handleWebSocketHandshake(SOCKET clientSocket, const std::string& request);
 void acceptPlayer(SOCKET serverSocket);
+int checkCollision(const std::vector<int>& circleOne, int ignoreId);
+bool isWithinRadius(const std::vector<int>& point, const std::vector<int>& center, int radius);
 
 // Structure to represent a tile
 struct Tile {
@@ -196,6 +198,34 @@ void remove_player(GameState& game_state, SOCKET socket) {
     game_state.player_states.erase(socket);
 }
 
+std::string serializePlayerStateToString(const PlayerState& player) {
+    std::string result;
+    result += "{\"player\": {\"coins\":\"";
+    result += std::to_string(player.coins);
+    result += "\",\"troops\":\"[";
+    // Append the troops here
+		for (auto& cities : player.cities) {
+				for (auto& troop : cities.troops) {
+	 					result += std::to_string(troop.id);
+						result += ",";
+				}
+		}
+		result += "FAKETROOP";
+    result += "]\"}}";
+
+    return result;
+}
+
+void sendPlayerStateDeltaToClient(const PlayerState& player) {
+    std::string playerState = serializePlayerStateToString(player);
+    std::string frame = encodeWebSocketFrame(playerState);
+
+    int result = send(player.socket, frame.c_str(), static_cast<int>(frame.size()), 0);
+    if (result == SOCKET_ERROR) {
+        log("Failed to send update to client: " + std::to_string(WSAGetLastError()));
+    }
+}
+
 
 
 
@@ -258,34 +288,6 @@ void initializeGameState() {
 
 
 
-std::string serializePlayerStateToString(const PlayerState& player) {
-    std::string result;
-    result += "{\"player\": {\"coins\":\"";
-    result += std::to_string(player.coins);
-    result += "\",\"troops\":\"[";
-    // Append the troops here
-		for (auto& cities : player.cities) {
-				for (auto& troop : cities.troops) {
-	 					result += std::to_string(troop.id);
-						result += ",";
-				}
-		}
-		result += "FAKETROOP";
-    result += "]\"}}";
-
-    return result;
-}
-
-void sendPlayerStateDeltaToClient(const PlayerState& player) {
-    std::string playerState = serializePlayerStateToString(player);
-    std::string frame = encodeWebSocketFrame(playerState);
-
-    int result = send(player.socket, frame.c_str(), static_cast<int>(frame.size()), 0);
-    if (result == SOCKET_ERROR) {
-        log("Failed to send update to client: " + std::to_string(WSAGetLastError()));
-    }
-}
-
 // Function to serialize the game state into a simple string format
 std::string serializeGameStateToString() {
     std::string result;
@@ -321,23 +323,6 @@ void sendGameStateDeltasToClients() {
     }
     gameState.changedTiles.clear();
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 // Some more game state functions related to moving troops
 void temporarilyRemoveTroopFromGameState(Troop* troop) {
@@ -415,9 +400,6 @@ int drawCircle(int (*func)(int, int, const std::string), int x, int y, int radiu
     return 0;
 }
 
-
-
-
 int changeGridPoint(int x, int y, const std::string color) {
     std::lock_guard<std::mutex> lock(gameState.stateMutex);
 
@@ -431,132 +413,6 @@ int changeGridPoint(int x, int y, const std::string color) {
     }
     return 0;
 }
-
-
-
-
-int isColliding(std::vector<int> circleOne, std::vector<int> circleTwo) {
-    int xOne = circleOne[0];
-    int yOne = circleOne[1];
-    int radOne = circleOne[2];
-
-    int xTwo = circleTwo[0];
-    int yTwo = circleTwo[1];
-    int radTwo = circleTwo[2];
-
-    int xResult = (xTwo - xOne) * (xTwo - xOne);
-    int yResult = (yTwo - yOne) * (yTwo - yOne);
-    int requiredDistance = radOne + radTwo;
-
-    int actualDistance = static_cast<int>(squareRoot(static_cast<double>(xResult + yResult)));
-
-    if (actualDistance < requiredDistance)
-        return 1;
-    return 0;
-}
-
-
-
-
-std::shared_ptr<Troop> findNearestTroop(PlayerState& player, const std::vector<int>& coords) {
-    std::shared_ptr<Troop> nearestTroop = nullptr;
-    int minDistance = std::numeric_limits<int>::max();
-
-    for (auto& city : player.cities) {
-        if (city.midpoint.empty()) continue; // Skip uninitialized cities
-        for (auto& troop : city.troops) {
-            if (troop.midpoint.size() < 2) continue; // Skip uninitialized troops
-            int dx = coords[0] - troop.midpoint[0];
-            int dy = coords[1] - troop.midpoint[1];
-            int distance = dx * dx + dy * dy;
-            if (distance < minDistance) {
-                minDistance = distance;
-                nearestTroop = std::make_shared<Troop>(troop);
-            }
-        }
-    }
-
-    return nearestTroop;
-}
-
-
-
-
-bool isWithinRadius(const std::vector<int>& point, const std::vector<int>& center, int radius) {
-    if (point.size() < 2 || center.size() < 2) {
-        log("Invalid point or center size. Point size: " + std::to_string(point.size()) + ", Center size: " + std::to_string(center.size()));
-        return false;
-    }
-
-    int dx = point[0] - center[0];
-    int dy = point[1] - center[1];
-    int distanceSquared = dx * dx + dy * dy;
-    int radiusSquared = radius * radius;
-    bool withinRadius = distanceSquared <= radiusSquared;
-
-    if (withinRadius) {
-        log("Collision detected: point (" + std::to_string(point[0]) + ", " + std::to_string(point[1]) +
-            "), center (" + std::to_string(center[0]) + ", " + std::to_string(center[1]) +
-            "), radius " + std::to_string(radius));
-    }
-
-    return withinRadius;
-}
-
-
-
-
-int checkCollision(const std::vector<int>& circleOne, int ignoreId = -1) {
-    std::lock_guard<std::mutex> lock(gameState.stateMutex);
-
-    bool hasCircles = false;
-    for (const auto& playerPair : gameState.player_states) {
-        const PlayerState& player = playerPair.second;
-        for (const auto& city : player.cities) {
-            if (!city.midpoint.empty()) {
-                hasCircles = true;
-                break;
-            }
-        }
-        if (hasCircles)
-            break;
-    }
-
-    if (!hasCircles)
-        return 0;
-
-    for (const auto& playerPair : gameState.player_states) {
-        const PlayerState& player = playerPair.second;
-        for (const auto& troop : player.cities->troops) {
-            if (!troop.midpoint.empty() && troop.id != ignoreId) {
-                std::vector<int> circleTwo = { troop.midpoint[0], troop.midpoint[1], troop.size };
-                if (isColliding(circleOne, circleTwo)) {
-                    return 1;
-                }
-            }
-        }
-        for (const auto& building : player.cities->buildings) {
-            if (!building.midpoint.empty()) {
-                std::vector<int> circleTwo = { building.midpoint[0], building.midpoint[1], building.size };
-                if (isColliding(circleOne, circleTwo)) {
-                    return 1;
-                }
-            }
-        }
-        for (const auto& city : player.cities) {
-            if (!city.midpoint.empty()) {
-                std::vector<int> circleTwo = { city.midpoint[0], city.midpoint[1], 15 };
-                if (isColliding(circleOne, circleTwo)) {
-                    return 1;
-                }
-            }
-        }
-    }
-    return 0;
-}
-
-
-
 
 // When not high as fuck, create a functional version of this using lambda functions and
 // a recursive function to handle the for loop logic
@@ -684,6 +540,26 @@ void applyDamageToCollidingEntities(SOCKET playerSocket, CollidableEntity* movin
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Collision logic and functions
+
 void checkForCollidingTroops() {
     std::lock_guard<std::mutex> lock(gameState.stateMutex);
     
@@ -695,6 +571,126 @@ void checkForCollidingTroops() {
             }
         }
     }
+}
+
+int isColliding(std::vector<int> circleOne, std::vector<int> circleTwo) {
+    int xOne = circleOne[0];
+    int yOne = circleOne[1];
+    int radOne = circleOne[2];
+
+    int xTwo = circleTwo[0];
+    int yTwo = circleTwo[1];
+    int radTwo = circleTwo[2];
+
+    int xResult = (xTwo - xOne) * (xTwo - xOne);
+    int yResult = (yTwo - yOne) * (yTwo - yOne);
+    int requiredDistance = radOne + radTwo;
+
+    int actualDistance = static_cast<int>(squareRoot(static_cast<double>(xResult + yResult)));
+
+    if (actualDistance < requiredDistance)
+        return 1;
+    return 0;
+}
+
+
+
+
+std::shared_ptr<Troop> findNearestTroop(PlayerState& player, const std::vector<int>& coords) {
+    std::shared_ptr<Troop> nearestTroop = nullptr;
+    int minDistance = std::numeric_limits<int>::max();
+
+    for (auto& city : player.cities) {
+        if (city.midpoint.empty()) continue; // Skip uninitialized cities
+        for (auto& troop : city.troops) {
+            if (troop.midpoint.size() < 2) continue; // Skip uninitialized troops
+            int dx = coords[0] - troop.midpoint[0];
+            int dy = coords[1] - troop.midpoint[1];
+            int distance = dx * dx + dy * dy;
+            if (distance < minDistance) {
+                minDistance = distance;
+                nearestTroop = std::make_shared<Troop>(troop);
+            }
+        }
+    }
+
+    return nearestTroop;
+}
+
+
+
+
+bool isWithinRadius(const std::vector<int>& point, const std::vector<int>& center, int radius) {
+    if (point.size() < 2 || center.size() < 2) {
+        log("Invalid point or center size. Point size: " + std::to_string(point.size()) + ", Center size: " + std::to_string(center.size()));
+        return false;
+    }
+
+    int dx = point[0] - center[0];
+    int dy = point[1] - center[1];
+    int distanceSquared = dx * dx + dy * dy;
+    int radiusSquared = radius * radius;
+    bool withinRadius = distanceSquared <= radiusSquared;
+
+    if (withinRadius) {
+        log("Collision detected: point (" + std::to_string(point[0]) + ", " + std::to_string(point[1]) +
+            "), center (" + std::to_string(center[0]) + ", " + std::to_string(center[1]) +
+            "), radius " + std::to_string(radius));
+    }
+
+    return withinRadius;
+}
+
+
+
+
+int checkCollision(const std::vector<int>& circleOne, int ignoreId = -1) {
+    std::lock_guard<std::mutex> lock(gameState.stateMutex);
+
+    bool hasCircles = false;
+    for (const auto& playerPair : gameState.player_states) {
+        const PlayerState& player = playerPair.second;
+        for (const auto& city : player.cities) {
+            if (!city.midpoint.empty()) {
+                hasCircles = true;
+                break;
+            }
+        }
+        if (hasCircles)
+            break;
+    }
+
+    if (!hasCircles)
+        return 0;
+
+    for (const auto& playerPair : gameState.player_states) {
+        const PlayerState& player = playerPair.second;
+        for (const auto& troop : player.cities->troops) {
+            if (!troop.midpoint.empty() && troop.id != ignoreId) {
+                std::vector<int> circleTwo = { troop.midpoint[0], troop.midpoint[1], troop.size };
+                if (isColliding(circleOne, circleTwo)) {
+                    return 1;
+                }
+            }
+        }
+        for (const auto& building : player.cities->buildings) {
+            if (!building.midpoint.empty()) {
+                std::vector<int> circleTwo = { building.midpoint[0], building.midpoint[1], building.size };
+                if (isColliding(circleOne, circleTwo)) {
+                    return 1;
+                }
+            }
+        }
+        for (const auto& city : player.cities) {
+            if (!city.midpoint.empty()) {
+                std::vector<int> circleTwo = { city.midpoint[0], city.midpoint[1], 15 };
+                if (isColliding(circleOne, circleTwo)) {
+                    return 1;
+                }
+            }
+        }
+    }
+    return 0;
 }
 
 
