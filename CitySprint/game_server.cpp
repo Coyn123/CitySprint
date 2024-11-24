@@ -531,8 +531,9 @@ void applyDamageToCollidingEntities(SOCKET playerSocket, CollidableEntity* movin
     for (auto& playerPair : gameState.player_states) {
         PlayerState& player = playerPair.second;
         for (auto& city : player.cities) {
-            log("Testing against city: " + std::to_string(city.id));
+            //log("Testing against city: " + std::to_string(city.id));
             if (city.id != movingEntity->id && city.midpoint.size() >= 2 && movingEntity->midpoint.size() >= 2 && isWithinRadius(city.midpoint, movingEntity->midpoint, movingEntity->size + city.size)) {
+                log("Testing against city: " + std::to_string(city.id));
                 int cityDamage = movingEntity->attack;
                 int movingEntityDamage = city.attack;
                 city.defense -= cityDamage;
