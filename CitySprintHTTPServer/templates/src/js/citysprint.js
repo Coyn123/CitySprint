@@ -5,6 +5,11 @@ let gameMatrix = []; // Initialize the game matrix
 let selectedCharacterType = "coin";
 let selectedTroop = null;
 
+var PlayerState = {
+    coins: 0,
+    cities: []
+};
+
 const fullscrBtn = document.getElementById('fullscreenBtn');
 
 const ws = new WebSocket("ws://localhost:9001"); // For Development
@@ -102,6 +107,12 @@ function handleServerMessage(event) {
     }
     const obj = JSON.parse(event.data);
     console.log(obj);
+
+    if (obj.hasOwnProperty("player")) {
+        console.log(obj.player.coins);
+        return;
+    }
+
     const updates = event.data.split(";");
     updates.forEach(update => {
         if (update.trim()) { // Ensure no empty segments
