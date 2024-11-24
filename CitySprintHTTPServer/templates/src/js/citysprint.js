@@ -153,5 +153,5 @@ function initializeGameMatrix() {
     context.fillRect(0, 0, canvas.width, canvas.height);
 }
 
-// Call this function to start the game
+// Call this f unction to start the game
 initializeGameMatrix();
