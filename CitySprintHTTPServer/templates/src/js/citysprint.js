@@ -125,6 +125,27 @@ function handleServerMessage(event) {
     });
 }
 
+//Popup functionality
+function showPopup() {
+    const popup = document.getElementById('popup');
+    popup.classList.remove('hidden');
+    updateList();
+}
+function closePopup() {
+    const popup = document.getElementById('popup');
+    popup.classList.add('hidden');
+}
+function updateList() {
+    const list = document.getElementById('dynamic-list');
+    list.innerHTML = ''; // clear list
+    const items = []; // list items
+    items.forEach(item => {
+        console.log(item);
+        const listItems = document.createElement('li');
+        listItems.textContent = item;
+        list.appendChild(listItems);
+    });
+}
 // Initial setup to clear the canvas and fill with an initial color if needed
 function initializeGameMatrix() {
     context.clearRect(0, 0, canvas.width, canvas.height);

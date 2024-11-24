@@ -49,8 +49,16 @@
                 </div>
             </div>
         </div>
-    </nav>
-    <div class="main-content">
+        <button class="popup-trigger" onclick="showPopup()">Test</button>
+        <div id="popup" class="hidden">
+            <div class="popup-content">
+                <span class="close" onclick="closePopup()">&times;</span>
+                <h2>Popup Title</h2>
+                <ul id="dynamic-list">
+                </ul>
+            </div>
+        </nav>     
+        <div class="main-content">
         <aside class="sidebar left-sidebar">
             <div class="button-group">
                 <button id="coinButton" onclick="setCharacterType(this)">Coin</button>

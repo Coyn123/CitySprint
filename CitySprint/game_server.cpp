@@ -267,8 +267,38 @@ void initializeGameState() {
     log("Game state initialized with " + std::to_string(rows) + " rows and " + std::to_string(cols) + " columns.");
 }
 
+void initializeMaps() {
+    // SETUP OUR MAPS
+    // Troops
+    troopMap["Barbarian"] = {
+        generateUniqueId(), // id
+        {0, 0}, // midpoint
+        3, // size
+        100, // defense
+        10, // attack
+        {}, // collidingEntities
+        "red", // color
+        1, // movement
+        1, // attackDistance
+        15, // cost
+        5 // foodCost
+    };
 
-
+    // Buildings
+    buildingMap["coinFarm"] = {
+        generateUniqueId(), // id
+        {0, 0}, // midpoint
+        5, // size
+        100, // defense
+        5, // attack
+        {}, // collidingEntities
+        "purple", // color
+        50, // cost
+        5, // food
+        0 // coins
+    };
+    return;
+}
 
 
 
@@ -496,9 +526,12 @@ void updateEntityMidpoint(SOCKET playerSocket, const std::vector<int>& oldMidpoi
 void applyDamageToCollidingEntities(SOCKET playerSocket, CollidableEntity* movingEntity) {
     std::lock_guard<std::mutex> lock(gameState.stateMutex);
 
+    log("Applying damage for moving entity " + std::to_string(movingEntity->id) + " (Client: " + std::to_string(playerSocket) + ")");
+
     for (auto& playerPair : gameState.player_states) {
         PlayerState& player = playerPair.second;
         for (auto& city : player.cities) {
+            log("Testing against city: " + std::to_string(city.id));
             if (city.id != movingEntity->id && city.midpoint.size() >= 2 && movingEntity->midpoint.size() >= 2 && isWithinRadius(city.midpoint, movingEntity->midpoint, movingEntity->size + city.size)) {
                 int cityDamage = movingEntity->attack;
                 int movingEntityDamage = city.attack;
@@ -510,6 +543,7 @@ void applyDamageToCollidingEntities(SOCKET playerSocket, CollidableEntity* movin
                 log("City " + std::to_string(city.id) + " (Client: " + std::to_string(playerPair.first) + ") dealt " + std::to_string(movingEntityDamage) + " damage to Entity " + std::to_string(movingEntity->id) + " (Client: " + std::to_string(playerSocket) + "). Entity defense: " + std::to_string(movingEntity->defense));
             }
             for (auto& troop : city.troops) {
+                
                 if (troop.id != movingEntity->id && troop.midpoint.size() >= 2 && movingEntity->midpoint.size() >= 2 && isWithinRadius(troop.midpoint, movingEntity->midpoint, movingEntity->size + troop.size)) {
                     int troopDamage = movingEntity->attack;
                     int movingEntityDamage = troop.attack;
@@ -588,6 +622,8 @@ int isColliding(std::vector<int> circleOne, std::vector<int> circleTwo) {
 
     int actualDistance = static_cast<int>(squareRoot(static_cast<double>(xResult + yResult)));
 
+    log("Checking collision: circleOne (" + std::to_string(xOne) + ", " + std::to_string(yOne) + ", " + std::to_string(radOne) + "), circleTwo (" + std::to_string(xTwo) + ", " + std::to_string(yTwo) + ", " + std::to_string(radTwo) + "), actualDistance: " + std::to_string(actualDistance) + ", requiredDistance: " + std::to_string(requiredDistance));
+
     if (actualDistance < requiredDistance)
         return 1;
     return 0;
@@ -647,6 +683,8 @@ bool isWithinRadius(const std::vector<int>& point, const std::vector<int>& cente
 int checkCollision(const std::vector<int>& circleOne, int ignoreId = -1) {
     std::lock_guard<std::mutex> lock(gameState.stateMutex);
 
+    log("Checking collision for circle with ignoreId: " + std::to_string(ignoreId));
+
     bool hasCircles = false;
     for (const auto& playerPair : gameState.player_states) {
         const PlayerState& player = playerPair.second;
@@ -669,6 +707,7 @@ int checkCollision(const std::vector<int>& circleOne, int ignoreId = -1) {
             if (!troop.midpoint.empty() && troop.id != ignoreId) {
                 std::vector<int> circleTwo = { troop.midpoint[0], troop.midpoint[1], troop.size };
                 if (isColliding(circleOne, circleTwo)) {
+                    log("Collision detected between entity " + std::to_string(ignoreId) + " and troop " + std::to_string(troop.id));
                     return 1;
                 }
             }
@@ -677,6 +716,7 @@ int checkCollision(const std::vector<int>& circleOne, int ignoreId = -1) {
             if (!building.midpoint.empty()) {
                 std::vector<int> circleTwo = { building.midpoint[0], building.midpoint[1], building.size };
                 if (isColliding(circleOne, circleTwo)) {
+                    log("Collision detected between entity " + std::to_string(ignoreId) + " and building " + std::to_string(building.id));
                     return 1;
                 }
             }
@@ -685,6 +725,7 @@ int checkCollision(const std::vector<int>& circleOne, int ignoreId = -1) {
             if (!city.midpoint.empty()) {
                 std::vector<int> circleTwo = { city.midpoint[0], city.midpoint[1], 15 };
                 if (isColliding(circleOne, circleTwo)) {
+                    log("Collision detected between entity " + std::to_string(ignoreId) + " and city " + std::to_string(city.id));
                     return 1;
                 }
             }
@@ -776,6 +817,14 @@ void moveTroopToPosition(SOCKET playerSocket, std::shared_ptr<Troop> troop, cons
         else if (currentCoords[1] > targetCoords[1]) nextCoords[1]--;
 
         log("Attempting to move troop " + std::to_string(troop->id) + " (Client: " + std::to_string(playerSocket) + ") from (" + std::to_string(currentCoords[0]) + ", " + std::to_string(currentCoords[1]) + ") to (" + std::to_string(nextCoords[0]) + ", " + std::to_string(nextCoords[1]) + ")");
+
+        // Check for collision at the next coordinates
+        std::vector<int> newCircle = { nextCoords[0], nextCoords[1], troop->size };
+        if (checkCollision(newCircle, troop->id)) {
+            log("Collision detected at (" + std::to_string(nextCoords[0]) + ", " + std::to_string(nextCoords[1]) + ")");
+            applyDamageToCollidingEntities(playerSocket, troop.get());
+            return;
+        }
 
         if (!moveCharacter(playerSocket, troop.get(), nextCoords)) {
             log("Failed to move troop " + std::to_string(troop->id) + " (Client: " + std::to_string(playerSocket) + ") to (" + std::to_string(nextCoords[0]) + ", " + std::to_string(nextCoords[1]) + ")");
@@ -1180,13 +1229,34 @@ void boardLoop() {
     while (true) {
         clearCollidingEntities(); // Clear previous collisions
 
-        std::vector<std::future<void>> futures;
+        bool hasEntitiesToProcess = false;
 
         for (auto& playerPair : gameState.player_states) {
             PlayerState& player = playerPair.second;
+            for (auto& city : player.cities) {
+                if (!city.collidingEntities.empty()) {
+                    hasEntitiesToProcess = true;
+                    break;
+                }
+                for (auto& troop : city.troops) {
+                    if (!troop.collidingEntities.empty()) {
+                        hasEntitiesToProcess = true;
+                        break;
+                    }
+                }
+                for (auto& building : city.buildings) {
+                    if (!building.collidingEntities.empty()) {
+                        hasEntitiesToProcess = true;
+                        break;
+                    }
+                }
+            }
+            if (hasEntitiesToProcess) break;
+        }
 
-            // Launch a task for each player to apply damage to colliding entities
-            futures.push_back(std::async(std::launch::async, [&player]() {
+        if (hasEntitiesToProcess) {
+            for (auto& playerPair : gameState.player_states) {
+                PlayerState& player = playerPair.second;
                 for (auto& city : player.cities) {
                     applyDamageToCollidingEntities(player.socket, &city);
                     for (auto& troop : city.troops) {
@@ -1196,12 +1266,7 @@ void boardLoop() {
                         applyDamageToCollidingEntities(player.socket, &building);
                     }
                 }
-                }));
-        }
-
-        // Wait for all tasks to complete
-        for (auto& future : futures) {
-            future.get();
+            }
         }
 
         sendGameStateDeltasToClients();
@@ -1242,35 +1307,7 @@ void boardLoop() {
 
 
 int main() {
-    // SETUP OUR MAPS
-    // Troops
-    troopMap["Barbarian"] = {
-        generateUniqueId(), // id
-        {0, 0}, // midpoint
-        3, // size
-        100, // defense
-        10, // attack
-        {}, // collidingEntities
-        "red", // color
-        1, // movement
-        1, // attackDistance
-        15, // cost
-        5 // foodCost
-    };
-
-    // Buildings
-    buildingMap["coinFarm"] = {
-        generateUniqueId(), // id
-        {0, 0}, // midpoint
-        5, // size
-        100, // defense
-        5, // attack
-        {}, // collidingEntities
-        "purple", // color
-        50, // cost
-        5, // food
-        0 // coins
-    };
+    initializeMaps();
 
     // NETWORK CONFIG
 #ifdef _WIN32
