@@ -264,6 +264,13 @@ std::string serializePlayerStateToString(const PlayerState& player) {
     result += std::to_string(player.coins);
     result += "\",\"troops\":\"[";
     // Append the troops here
+		for (auto& cities : player.cities) {
+				for (auto& troop : cities.troops) {
+	 					result += std::to_string(troop.id);
+						result += ",";
+				}
+		}
+		result += "FAKETROOP";
     result += "]\"}}";
 
     return result;
@@ -315,6 +322,24 @@ void sendGameStateDeltasToClients() {
     gameState.changedTiles.clear();
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Some more game state functions related to moving troops
 void temporarilyRemoveTroopFromGameState(Troop* troop) {
     if (!troop || troop->midpoint.size() < 2) return;
 
