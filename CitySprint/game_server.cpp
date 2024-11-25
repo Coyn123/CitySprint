@@ -544,8 +544,10 @@ void applyDamageToCollidingEntities(SOCKET playerSocket, CollidableEntity* movin
                 log("City " + std::to_string(city.id) + " (Client: " + std::to_string(playerPair.first) + ") dealt " + std::to_string(movingEntityDamage) + " damage to Entity " + std::to_string(movingEntity->id) + " (Client: " + std::to_string(playerSocket) + "). Entity defense: " + std::to_string(movingEntity->defense));
             }
             for (auto& troop : city.troops) {
-                
-                if (troop.id != movingEntity->id && troop.midpoint.size() >= 2 && movingEntity->midpoint.size() >= 2 && isWithinRadius(troop.midpoint, movingEntity->midpoint, movingEntity->size + troop.size)) {
+                log("Testing against troop: " + std::to_string(troop.id));
+                if (troop.id == movingEntity->id)
+                    break;
+                if (troop.id != movingEntity->id && troop.midpoint.size() >= 2 && isWithinRadius(troop.midpoint, movingEntity->midpoint, movingEntity->size + troop.size)) {
                     int troopDamage = movingEntity->attack;
                     int movingEntityDamage = troop.attack;
                     troop.defense -= troopDamage;
