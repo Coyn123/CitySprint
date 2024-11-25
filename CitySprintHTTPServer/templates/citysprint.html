@@ -49,15 +49,7 @@
                 </div>
             </div>
         </div>
-        <button class="popup-trigger" onclick="showPopup()">Test</button>
-        <div id="popup" class="hidden">
-            <div class="popup-content">
-                <span class="close" onclick="closePopup()">&times;</span>
-                <h2>Popup Title</h2>
-                <ul id="dynamic-list">
-                </ul>
-            </div>
-        </nav>     
+        </nav>
         <div class="main-content">
         <aside class="sidebar left-sidebar">
             <div class="button-group">
@@ -66,6 +58,8 @@
                 <button id="buildingButton" onclick="setCharacterType(this)">Building</button>
                 <button id="cityButton" onclick="setCharacterType(this)">City</button>
                 <button id="selectButton" onclick="setCharacterType(this)">Select</button>
+                <ul id="dynamic-list">
+                </ul>
             </div>
         </aside>
         <div class="canvas-wrapper">
