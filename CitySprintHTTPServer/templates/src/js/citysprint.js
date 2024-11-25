@@ -4,6 +4,7 @@ const tileSize = 2; // Update the tileSize to match server
 let gameMatrix = []; // Initialize the game matrix
 let selectedCharacterType = "coin";
 let selectedTroop = null;
+var obj = null;
 
 var PlayerState = {
     coins: 0,
@@ -28,6 +29,7 @@ function setCharacterType(button) {
         selectedTroop = null; // Deselect any selected troop if not in select mode
     }
     console.log("Character type selected: ", selectedCharacterType);
+    updateList();
 }
 
 ws.onmessage = function (event) {
@@ -36,6 +38,7 @@ ws.onmessage = function (event) {
         return;
     }
     handleServerMessage(event);
+    updateList();
 };
 
 ws.onclose = function (event) {
@@ -76,6 +79,7 @@ canvas.addEventListener("click", (e) => {
     } else {
         changeGridPoint(col, row, "white", selectedCharacterType);
     }
+    updateList();
 });
 
 function selectTroop(x, y) {
@@ -105,13 +109,8 @@ function handleServerMessage(event) {
     if (!event.data) {
         return;
     }
-    const obj = JSON.parse(event.data);
+    obj = JSON.parse(event.data);
     console.log(obj);
-
-    if (obj.hasOwnProperty("player")) {
-        console.log(obj.player.coins);
-        return;
-    }
 
     const updates = event.data.split(";");
     updates.forEach(update => {
@@ -156,7 +155,28 @@ function updateList() {
         listItems.textContent = item;
         list.appendChild(listItems);
     });
+    updateList();
 }
+//status functionality
+function updateList() {
+    const list = document.getElementById('dynamic-list');
+    list.innerHTML = ''; // clear list
+    if(obj.player == null) {
+        
+        return;
+    }
+    const items = [obj.player.coins, selectedCharacterType]; //list items
+
+    const coinsItem = document.createElement('li');
+    coinsItem.textContent = "coins: " + items[0];
+    list.appendChild(coinsItem);
+
+    const selectedItem = document.createElement('li')
+    selectedItem.textContent = "CURRENT: " + items[1];
+    list.appendChild(selectedItem);
+
+}
+
 // Initial setup to clear the canvas and fill with an initial color if needed
 function initializeGameMatrix() {
     context.clearRect(0, 0, canvas.width, canvas.height);
@@ -164,5 +184,5 @@ function initializeGameMatrix() {
     context.fillRect(0, 0, canvas.width, canvas.height);
 }
 
-// Call this f unction to start the game
+// Call this function to start the game
 initializeGameMatrix();
