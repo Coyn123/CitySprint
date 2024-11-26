@@ -332,8 +332,7 @@ std::string serializeGameStateToString() {
                 result += std::to_string(x) + "," + std::to_string(y) + "," + gameState.board[y][x] + ";";
             }
         }
-    }
-    else {
+    }else {
         for (const auto& tile : gameState.changedTiles) {
             result += std::to_string(tile.x) + "," + std::to_string(tile.y) + "," + tile.color + ";";
         }
@@ -425,8 +424,7 @@ int drawCircle(int (*func)(int, int, const std::string), int x, int y, int radiu
 
         if (d <= 0) {
             d += 4 * x + 6;
-        }
-        else {
+        } else {
             d += 4 * (x - y) + 10;
             y--;
         }
@@ -441,8 +439,7 @@ int changeGridPoint(int x, int y, const std::string color) {
     if (x >= 0 && x < BOARD_WIDTH / TILE_SIZE && y >= 0 && y < BOARD_HEIGHT / TILE_SIZE) {
         gameState.board[y][x] = color;
         gameState.changedTiles.push_back({ x, y, color });
-    }
-    else {
+    } else {
         log("Invalid grid point (" + std::to_string(x) + ", " + std::to_string(y) + "). No changes made.");
         return 1;
     }
@@ -481,8 +478,7 @@ int insertCharacter(std::vector<int> coords, int radius, const std::string color
         if (d > 0) {
             y--;
             d = d + 4 * (x - y) + 10;
-        }
-        else {
+        } else {
             d = d + 4 * x + 6;
         }
     }
@@ -1003,8 +999,7 @@ void handlePlayerMessage(SOCKET clientSocket, const std::string& message) {
             nearestCity->coins++;
             log(std::to_string(player.coins) + " coins collected. City now has " + std::to_string(nearestCity->coins) + " coins.");
         }
-    }
-    else if (characterType == "troop") {
+    } else if (characterType == "troop") {
         if (player.coins < troopMap["Barbarian"].cost) {
             log("Not enough coins to create troop.");
             return;
@@ -1034,8 +1029,7 @@ void handlePlayerMessage(SOCKET clientSocket, const std::string& message) {
         if (nearestCity) {
             nearestCity->troops.push_back(newTroop);
         }
-    }
-    else if (characterType == "building") {
+    } else if (characterType == "building") {
         if (player.coins < buildingMap["coinFarm"].cost) {
             log("Not enough coins to create building.");
             return;
