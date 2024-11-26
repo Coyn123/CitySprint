@@ -4,12 +4,15 @@ const tileSize = 2; // Update the tileSize to match server
 let gameMatrix = []; // Initialize the game matrix
 let selectedCharacterType = "coin";
 let selectedTroop = null;
-var obj = null;
+var jsonStuff = '{"player":{"coins":100,"troops":0}}';
+
+var obj = JSON.parse(jsonStuff);
 
 var PlayerState = {
     coins: 0,
     cities: []
 };
+
 
 const fullscrBtn = document.getElementById('fullscreenBtn');
 
@@ -38,7 +41,6 @@ ws.onmessage = function (event) {
         return;
     }
     handleServerMessage(event);
-    updateList();
 };
 
 ws.onclose = function (event) {
@@ -133,49 +135,37 @@ function handleServerMessage(event) {
             }
         }
     });
+	updateList();
 }
 
 //Popup functionality
 function showPopup() {
     const popup = document.getElementById('popup');
     popup.classList.remove('hidden');
-    updateList();
 }
 function closePopup() {
     const popup = document.getElementById('popup');
     popup.classList.add('hidden');
 }
-function updateList() {
-    const list = document.getElementById('dynamic-list');
-    list.innerHTML = ''; // clear list
-    const items = []; // list items
-    items.forEach(item => {
-        console.log(item);
-        const listItems = document.createElement('li');
-        listItems.textContent = item;
-        list.appendChild(listItems);
-    });
-    updateList();
-}
+
+const list = document.getElementById('dynamic-list');
 //status functionality
 function updateList() {
-    const list = document.getElementById('dynamic-list');
-    list.innerHTML = ''; // clear list
-    if(obj.player == null) {
-        
-        return;
-    }
-    const items = [obj.player.coins, selectedCharacterType]; //list items
+		if (obj.player == null) return;
+		const items = [obj.player.coins, selectedCharacterType];
+				
+		list.innerHTML = ''; // clear list
 
-    const coinsItem = document.createElement('li');
-    coinsItem.textContent = "coins: " + items[0];
-    list.appendChild(coinsItem);
+		const coinsItem = document.createElement('li');
+		coinsItem.textContent = "coins: " + items[0];
+		list.appendChild(coinsItem);
 
-    const selectedItem = document.createElement('li')
-    selectedItem.textContent = "CURRENT: " + items[1];
-    list.appendChild(selectedItem);
-
+		const selectedItem = document.createElement('li')
+		selectedItem.textContent = "CURRENT: " + items[1];
+		list.appendChild(selectedItem);
+		return;
 }
+updateList();
 
 // Initial setup to clear the canvas and fill with an initial color if needed
 function initializeGameMatrix() {
