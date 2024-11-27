@@ -356,18 +356,18 @@ int drawCircle(int (*func)(int, int, const std::string), int x, int y, int radiu
   return 0;
 }
 
-int changeGridPoint(int x, int y, const std::string color)
-{
-  std::lock_guard<std::mutex> lock(gameState.stateMutex);
-  if ((x >= 0 && x < BOARD_WIDTH / TILE_SIZE && y >= 0 && y < BOARD_HEIGHT / TILE_SIZE) || color == "#696969") {
-    gameState.board[y][x] = color;
-    gameState.changedTiles.push_back({ x, y, color });
-  }
-  else {
-    log("Invalid grid point (" + std::to_string(x) + ", " + std::to_string(y) + "). No changes made.");
-    return 1;
-  }
-  return 0;
+int changeGridPoint(int x, int y, const std::string color) {
+    std::lock_guard<std::mutex> lock(gameState.stateMutex);
+
+    // Ensure the coordinates are within the valid range or if resetting to default color
+    if ((x >= 0 && x < BOARD_WIDTH / TILE_SIZE && y >= 0 && y < BOARD_HEIGHT / TILE_SIZE) || color == "#696969") {
+        gameState.board[y][x] = color;
+        gameState.changedTiles.push_back({ x, y, color });
+    } else {
+        log("Invalid grid point (" + std::to_string(x) + ", " + std::to_string(y) + "). No changes made.");
+        return 1;
+    }
+    return 0;
 }
 
 
