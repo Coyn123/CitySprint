@@ -296,7 +296,30 @@ void sendGameStateDeltasToClients(GameState& game_state)
   }
   game_state.changedTiles.clear(); // Clear the changed tiles after sending
 }
+void update_game_state(GameState& game_state) {
+  std::lock_guard<std::mutex> lock(game_state.stateMutex);
 
+  for (auto& playerPair : game_state.player_states) {
+    PlayerState& player = playerPair.second;
+    for (auto& city : player.cities) {
+      // Remove destroyed troops
+      city.troops.erase(std::remove_if(city.troops.begin(), city.troops.end(),
+        [](const Troop& troop) { return troop.defense <= 0; }), city.troops.end());
+
+      // Remove destroyed buildings
+      city.buildings.erase(std::remove_if(city.buildings.begin(), city.buildings.end(),
+        [](const Building& building) { return building.defense <= 0; }), city.buildings.end());
+
+      // Check if the city itself is destroyed
+      if (city.defense <= 0) {
+        // Handle city destruction logic here
+        // For simplicity, we can just clear the city's troops and buildings
+        city.troops.clear();
+        city.buildings.clear();
+      }
+    }
+  }
+}
 
 // Some more game state functions related to moving troops
 void temporarilyRemoveTroopFromGameState(GameState& game_state, Troop* troop)
@@ -326,6 +349,7 @@ void clearCollidingEntities(GameState& game_state)
 
 int changeGridPoint(GameState& game_state, int x, int y, const std::string color)
 {
+  std::lock_guard<std::mutex> lock(game_state.stateMutex);
   if ((x >= 0 && x < BOARD_WIDTH / TILE_SIZE && y >= 0 && y < BOARD_HEIGHT / TILE_SIZE) || color == "#696969") {
     game_state.board[y][x] = color;
     game_state.changedTiles.push_back({ x, y, color });
@@ -411,7 +435,8 @@ void updateEntityMidpoint(GameState& game_state, SOCKET playerSocket, const std:
   log("Entity with the specified midpoint not found.");
 }
 
-void removeTroopFromGameState(GameState& game_state, PlayerState& playerState, int troopId) {
+void removeTroopFromGameState(GameState& game_state, PlayerState& playerState, int troopId)
+{
   log("Attempting to remove troop with ID: " + std::to_string(troopId));
 
   for (auto& city : playerState.cities) {
@@ -430,12 +455,14 @@ void removeTroopFromGameState(GameState& game_state, PlayerState& playerState, i
       city.troops.erase(troopIt);
 
       log("Troop " + std::to_string(troopId) + " removed from game state.");
+      update_game_state(game_state); // Update game state after removal
       return;
     }
   }
 
   log("Troop with ID " + std::to_string(troopId) + " not found in any city.");
 }
+
 
 void applyDamageToCollidingEntities(GameState& game_state, SOCKET playerSocket, CollidableEntity* movingEntity) {
   PlayerState& ourPlayer = game_state.player_states[playerSocket];
@@ -469,6 +496,7 @@ void applyDamageToCollidingEntities(GameState& game_state, SOCKET playerSocket, 
           log("Entity " + std::to_string(movingEntity->id) + " (Client: " + std::to_string(playerSocket) + ") has been destroyed.");
           // Handle moving entity destruction logic here
           removeTroopFromGameState(game_state, ourPlayer, movingEntity->id);
+          update_game_state(game_state); // Update game state after removal
           return;
         }
       }
@@ -494,6 +522,7 @@ void applyDamageToCollidingEntities(GameState& game_state, SOCKET playerSocket, 
           if (movingEntity->defense <= 0) {
             log("Our troop is dead");
             removeTroopFromGameState(game_state, ourPlayer, movingEntity->id);
+            update_game_state(game_state); // Update game state after removal
             return;
           }
         }
@@ -514,20 +543,24 @@ void applyDamageToCollidingEntities(GameState& game_state, SOCKET playerSocket, 
           }
           if (movingEntity->defense <= 0) {
             log("Entity " + std::to_string(movingEntity->id) + " (Client: " + std::to_string(playerSocket) + ") has been destroyed.");
-            // Handle moving entity destruction logic here
+            // Handle moving entity destruction here
             removeTroopFromGameState(game_state, ourPlayer, movingEntity->id);
+            update_game_state(game_state); // Update game state after removal
             return;
           }
         }
       }
     }
   }
+  update_game_state(game_state); // Update game state after applying damage
 }
+
 
 
 // Collision logic and functions
 void checkForCollidingTroops(GameState& game_state)
 {
+  std::lock_guard<std::mutex> lock(game_state.stateMutex);
   for (auto& player : game_state.player_states) {
     PlayerState& playerState = player.second;
     for (auto& cities : playerState.cities) {
@@ -1090,10 +1123,13 @@ void boardLoop(GameState& game_state)
       }
     }
 
+    update_game_state(game_state); // Update game state in the main loop
     sendGameStateDeltasToClients(game_state);
     std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Adjust the delay to match troop movement speed
   }
 }
+
+
 
 int main()
 {
@@ -1157,4 +1193,3 @@ int main()
   logFile.close();
   return 0;
 }
-
