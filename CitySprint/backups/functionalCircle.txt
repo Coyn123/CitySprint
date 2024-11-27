@@ -1,0 +1,30 @@
+// Functionality for interacting with circles, will organize more in the morning
+int drawCircle(int (*func)(int, int, const std::string), int x, int y, int radius, const std::string color) 
+{
+  int centerX = x;
+  int centerY = y;
+  int d = 3 - 1 * radius;
+  y = radius;
+  x = 0;
+
+  while (y >= x) {
+    func(centerX + x, centerY + y, color);
+    func(centerX - x, centerY + y, color);
+    func(centerX + x, centerY - y, color);
+    func(centerX - x, centerY - y, color);
+    func(centerX + y, centerY + x, color);
+    func(centerX - y, centerY + x, color);
+    func(centerX + y, centerY - x, color);
+    func(centerX - y, centerY - x, color);
+
+    if (d <= 0) {
+    d += 4 * x + 6;
+    }
+    else {
+    d += 4 * (x - y) + 10;
+    y--;
+    }
+    x++;
+  }
+  return 0;
+}
