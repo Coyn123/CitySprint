@@ -449,30 +449,33 @@ void updateEntityMidpoint(SOCKET playerSocket, const std::vector<int>& oldMidpoi
 }
 
 void removeTroopFromGameState(PlayerState& playerState, int troopId) {
-  log("Attempting to remove troop with ID: " + std::to_string(troopId));
+    log("Attempting to remove troop with ID: " + std::to_string(troopId));
 
-  for (auto& city : playerState.cities) {
-    auto troopIt = std::find_if(city.troops.begin(), city.troops.end(), [troopId](const Troop& troop) {
-      return troop.id == troopId;
-      });
+    for (auto& city : playerState.cities) {
+        auto troopIt = std::find_if(city.troops.begin(), city.troops.end(), [troopId](const Troop& troop) {
+            return troop.id == troopId;
+        });
 
-    if (troopIt != city.troops.end()) {
-      log("Troop found. Removing character from the board");
-      // Clear the board of the character using their midpoint
-      std::vector<int> midpoint = troopIt->midpoint;
-      insertCharacter(midpoint, troopIt->size, "#696969", troopId);
+        if (troopIt != city.troops.end()) {
+            log("Troop found. Removing character from the board");
 
-      // Remove the troop from the city's troop list
-      city.troops.erase(troopIt);
+            // Clear the board of the character using their midpoint
+            {
+                std::lock_guard<std::mutex> lock(gameState.stateMutex);
+                std::vector<int> midpoint = troopIt->midpoint;
+                insertCharacter(midpoint, troopIt->size, "#696969", troopId);
+            }
 
-      log("Troop " + std::to_string(troopId) + " removed from game state.");
-      return;
+            // Remove the troop from the city's troop list
+            city.troops.erase(troopIt);
+
+            log("Troop " + std::to_string(troopId) + " removed from game state.");
+            return;
+        }
     }
-  }
 
-  log("Troop with ID " + std::to_string(troopId) + " not found in any city.");
+    log("Troop with ID " + std::to_string(troopId) + " not found in any city.");
 }
-
 
 void applyDamageToCollidingEntities(SOCKET playerSocket, CollidableEntity* movingEntity) {
   std::lock_guard<std::mutex> lock(gameState.stateMutex);
