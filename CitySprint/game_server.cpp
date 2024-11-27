@@ -107,14 +107,37 @@ std::mutex clientsMutex;
 std::mutex logMutex;
 
 // Function prototypes
+void log(const std::string& message);
+int generateUniqueId();
+void update_player_state(GameState& game_state, SOCKET socket, const PlayerState& state);
+PlayerState get_player_state(GameState& game_state, SOCKET socket);
+void remove_player(GameState& game_state, SOCKET socket);
+std::string serializePlayerStateToString(const PlayerState& player);
+void sendPlayerStateDeltaToClient(const PlayerState& player);
+void initializeGameState();
+void initializeMaps();
+std::string serializeGameStateToString();
+void sendGameStateDeltasToClients();
+void temporarilyRemoveTroopFromGameState(Troop* troop);
+void clearCollidingEntities();
+int drawCircle(int (*func)(int, int, const std::string), int x, int y, int radius, const std::string color);
+int changeGridPoint(int x, int y, const std::string color);
+int insertCharacter(std::vector<int> coords, int radius, const std::string color, int ignoreId);
+void updateEntityMidpoint(SOCKET playerSocket, const std::vector<int>& oldMidpoint, const std::vector<int>& newMidpoint);
+void removeTroopFromGameState(SOCKET playerSocket, int troopId);
+void applyDamageToCollidingEntities(SOCKET playerSocket, CollidableEntity* movingEntity);
+void checkForCollidingTroops();
+int isColliding(std::vector<int> circleOne, std::vector<int> circleTwo);
+std::shared_ptr<Troop> findNearestTroop(PlayerState& player, const std::vector<int>& coords);
+bool isWithinRadius(const std::vector<int>& point, const std::vector<int>& center, int radius);
+int checkCollision(const std::vector<int>& circleOne, int ignoreId);
+bool moveCharacter(SOCKET playerSocket, CollidableEntity* entityToMove, const std::vector<int>& newCoords);
+void moveTroopToPosition(SOCKET playerSocket, std::shared_ptr<Troop> troop, const std::vector<int>& targetCoords);
 void handlePlayerMessage(SOCKET clientSocket, const std::string& message);
 void gameLogic(SOCKET clientSocket);
 void handleWebSocketHandshake(SOCKET clientSocket, const std::string& request);
 void acceptPlayer(SOCKET serverSocket);
-int checkCollision(const std::vector<int>& circleOne, int ignoreId);
-bool isWithinRadius(const std::vector<int>& point, const std::vector<int>& center, int radius);
-int isColliding(std::vector<int> circleOne, std::vector<int> circleTwo);
-
+void boardLoop();
 
 
 void log(const std::string& message) 
@@ -209,7 +232,7 @@ void initializeMaps()
     generateUniqueId(), // id
     {0, 0}, // midpoint
     3, // size
-    100, // defense
+    10, // defense
     10, // attack
     {}, // collidingEntities
     "red", // color
@@ -224,7 +247,7 @@ void initializeMaps()
     generateUniqueId(), // id
     {0, 0}, // midpoint
     5, // size
-    100, // defense
+    10, // defense
     5, // attack
     {}, // collidingEntities
     "purple", // color
@@ -256,7 +279,7 @@ std::string serializeGameStateToString()
 }
 
 // Function to send game state updates to all clients
-void sendGameStateDeltasToClients() 
+void sendGameStateDeltasToClients()
 {
   std::lock_guard<std::mutex> lock(gameState.stateMutex);
   if (gameState.changedTiles.empty()) {
@@ -270,8 +293,9 @@ void sendGameStateDeltasToClients()
       log("Failed to send to client: " + std::to_string(WSAGetLastError()));
     }
   }
-  gameState.changedTiles.clear();
+  gameState.changedTiles.clear(); // Clear the changed tiles after sending
 }
+
 
 // Some more game state functions related to moving troops
 void temporarilyRemoveTroopFromGameState(Troop* troop) 
@@ -332,23 +356,24 @@ int drawCircle(int (*func)(int, int, const std::string), int x, int y, int radiu
   return 0;
 }
 
-int changeGridPoint(int x, int y, const std::string color) 
+int changeGridPoint(int x, int y, const std::string color)
 {
   std::lock_guard<std::mutex> lock(gameState.stateMutex);
-
-  if (x >= 0 && x < BOARD_WIDTH / TILE_SIZE && y >= 0 && y < BOARD_HEIGHT / TILE_SIZE) {
+  if ((x >= 0 && x < BOARD_WIDTH / TILE_SIZE && y >= 0 && y < BOARD_HEIGHT / TILE_SIZE) || color == "#696969") {
     gameState.board[y][x] = color;
     gameState.changedTiles.push_back({ x, y, color });
-  } else {
+  }
+  else {
     log("Invalid grid point (" + std::to_string(x) + ", " + std::to_string(y) + "). No changes made.");
     return 1;
   }
   return 0;
 }
 
+
 // When not high as fuck, create a functional version of this using lambda functions and
 // a recursive function to handle the for loop logic
-int insertCharacter(std::vector<int> coords, int radius, const std::string color, int ignoreId = -1) 
+int insertCharacter(std::vector<int> coords, int radius, const std::string color, int ignoreId = -1)
 {
   int centerX = coords[0];
   int centerY = coords[1];
@@ -359,14 +384,17 @@ int insertCharacter(std::vector<int> coords, int radius, const std::string color
   std::vector<int> circle = { coords[0], coords[1], radius };
 
   log("Creating a character at (" + std::to_string(centerX) + ", " + std::to_string(centerY) + ")");
-
-  if (checkCollision(circle, ignoreId)) {
-    log("Collision detected at (" + std::to_string(centerX) + ", " + std::to_string(centerY) + ")");
-    return 0;
+  if (color != "#696969") {
+    if (checkCollision(circle, ignoreId)) {
+      log("Collision detected at (" + std::to_string(centerX) + ", " + std::to_string(centerY) + ")");
+      return 0;
+    }
   }
-
+  log("Drawing character now: " + std::to_string(radius) + ", " + std::to_string(coords[1]));
   while (y >= x) {
+    log("Made it into while loop");
     changeGridPoint(centerX + x, centerY + y, color);
+    log("Made it past first grid point change");
     changeGridPoint(centerX - x, centerY + y, color);
     changeGridPoint(centerX + x, centerY - y, color);
     changeGridPoint(centerX - x, centerY - y, color);
@@ -379,13 +407,14 @@ int insertCharacter(std::vector<int> coords, int radius, const std::string color
     if (d > 0) {
       y--;
       d = d + 4 * (x - y) + 10;
-    } else {
+    }
+    else {
       d = d + 4 * x + 6;
     }
   }
+  log("Successfully created player");
   return 1;
 }
-
 
 
 
@@ -422,11 +451,44 @@ void updateEntityMidpoint(SOCKET playerSocket, const std::vector<int>& oldMidpoi
   log("Entity with the specified midpoint not found.");
 }
 
+void removeTroopFromGameState(SOCKET playerSocket, int troopId) {
+  log("Attempting to remove troop with ID: " + std::to_string(troopId));
+
+  std::lock_guard<std::mutex> lock(gameState.stateMutex);
+  auto it = gameState.player_states.find(playerSocket);
+  if (it == gameState.player_states.end()) {
+    log("Player not found in game state.");
+    return;
+  }
+
+  PlayerState& playerState = it->second;
+  log(std::to_string(playerState.coins));
+  log("Searching for troop in player's cities");
+
+  for (auto& city : playerState.cities) {
+    auto troopIt = std::find_if(city.troops.begin(), city.troops.end(), [troopId](const Troop& troop) {
+      return troop.id == troopId;
+      });
+
+    if (troopIt != city.troops.end()) {
+      log("Troop found. Removing character from the board");
+      // Clear the board of the character using their midpoint
+      std::vector<int> midpoint = troopIt->midpoint;
+      insertCharacter(midpoint, troopIt->size, "#696969", troopId);
+
+      // Remove the troop from the city's troop list
+      city.troops.erase(troopIt);
+
+      log("Troop " + std::to_string(troopId) + " removed from game state.");
+      return;
+    }
+  }
+
+  log("Troop with ID " + std::to_string(troopId) + " not found in any city.");
+}
 
 
-
-void applyDamageToCollidingEntities(SOCKET playerSocket, CollidableEntity* movingEntity) 
-{
+void applyDamageToCollidingEntities(SOCKET playerSocket, CollidableEntity* movingEntity) {
   std::lock_guard<std::mutex> lock(gameState.stateMutex);
   PlayerState& ourPlayer = gameState.player_states[playerSocket];
 
@@ -444,7 +506,6 @@ void applyDamageToCollidingEntities(SOCKET playerSocket, CollidableEntity* movin
     for (auto& city : player.cities) {
       log("Testing against city: " + std::to_string(city.id));
       if (city.id != movingEntity->id && city.midpoint.size() >= 2 && movingEntity->midpoint.size() >= 2 && isWithinRadius(city.midpoint, movingEntity->midpoint, movingEntity->size + city.size)) {
-        log("Testing against city: " + std::to_string(city.id));
         int cityDamage = movingEntity->attack;
         int movingEntityDamage = city.attack;
         city.defense -= cityDamage;
@@ -456,9 +517,7 @@ void applyDamageToCollidingEntities(SOCKET playerSocket, CollidableEntity* movin
       }
       for (auto& troop : city.troops) {
         log("Testing against troop: " + std::to_string(troop.midpoint[0]) + ", " + std::to_string(troop.midpoint[1]) + " : " + std::to_string(movingEntity->midpoint[0]) + ", " + std::to_string(movingEntity->midpoint[1]));
-        std::vector<int> circleOne, circleTwo;
         int newRadius = (troop.size + movingEntity->size) + 2;
-        log(std::to_string(isWithinRadius(troop.midpoint, movingEntity->midpoint, newRadius)));
         if (isWithinRadius(troop.midpoint, movingEntity->midpoint, newRadius)) {
           log("Troops are officially fighting");
           int troopDamage = movingEntity->attack;
@@ -469,6 +528,16 @@ void applyDamageToCollidingEntities(SOCKET playerSocket, CollidableEntity* movin
           troop.collidingEntities.push_back(movingEntity->id);
           log("Entity " + std::to_string(movingEntity->id) + " (Client: " + std::to_string(playerSocket) + ") dealt " + std::to_string(troopDamage) + " damage to Troop " + std::to_string(troop.id) + " (Client: " + std::to_string(playerPair.first) + "). Troop defense: " + std::to_string(troop.defense));
           log("Troop " + std::to_string(troop.id) + " (Client: " + std::to_string(playerPair.first) + ") dealt " + std::to_string(movingEntityDamage) + " damage to Entity " + std::to_string(movingEntity->id) + " (Client: " + std::to_string(playerSocket) + "). Entity defense: " + std::to_string(movingEntity->defense));
+
+          // Remove troop if its defense is 0 or less
+          if (troop.defense <= 0) {
+            log("Their troop is dead");
+            removeTroopFromGameState(playerPair.first, troop.id);
+          }
+          if (movingEntity->defense <= 0) {
+            log("Our troop is dead");
+            removeTroopFromGameState(playerSocket, movingEntity->id);
+          }
         }
       }
       for (auto& building : city.buildings) {
@@ -486,6 +555,10 @@ void applyDamageToCollidingEntities(SOCKET playerSocket, CollidableEntity* movin
     }
   }
 }
+
+
+
+
 
 // Collision logic and functions
 void checkForCollidingTroops() 
@@ -512,17 +585,15 @@ int isColliding(std::vector<int> circleOne, std::vector<int> circleTwo)
   int yTwo = circleTwo[1];
   int radTwo = circleTwo[2];
 
-  int xResult = (xTwo - xOne) * (xTwo - xOne);
-  int yResult = (yTwo - yOne) * (yTwo - yOne);
-  int requiredDistance = radOne + radTwo;
+  int dx = xTwo - xOne;
+  int dy = yTwo - yOne;
+  int distanceSquared = dx * dx + dy * dy;
+  int radiusSum = radOne + radTwo;
+  int radiusSumSquared = radiusSum * radiusSum;
 
-  int actualDistance = static_cast<int>(squareRoot(static_cast<double>(xResult + yResult)));
+  log("Checking collision: circleOne (" + std::to_string(xOne) + ", " + std::to_string(yOne) + ", " + std::to_string(radOne) + "), circleTwo (" + std::to_string(xTwo) + ", " + std::to_string(yTwo) + ", " + std::to_string(radTwo) + "), actualDistance: " + std::to_string(radiusSumSquared) + ", requiredDistance: " + std::to_string(distanceSquared));
 
-  log("Checking collision: circleOne (" + std::to_string(xOne) + ", " + std::to_string(yOne) + ", " + std::to_string(radOne) + "), circleTwo (" + std::to_string(xTwo) + ", " + std::to_string(yTwo) + ", " + std::to_string(radTwo) + "), actualDistance: " + std::to_string(actualDistance) + ", requiredDistance: " + std::to_string(requiredDistance));
-
-  if (actualDistance <= requiredDistance)
-    return 1;
-  return 0;
+  return distanceSquared <= radiusSumSquared;
 }
 
 std::shared_ptr<Troop> findNearestTroop(PlayerState& player, const std::vector<int>& coords) 
@@ -572,7 +643,7 @@ bool isWithinRadius(const std::vector<int>& point, const std::vector<int>& cente
 
 
 
-int checkCollision(const std::vector<int>& circleOne, int ignoreId = -1) 
+int checkCollision(const std::vector<int>& circleOne, int ignoreId = -1)
 {
   std::lock_guard<std::mutex> lock(gameState.stateMutex);
 
@@ -627,6 +698,7 @@ int checkCollision(const std::vector<int>& circleOne, int ignoreId = -1)
   return 0;
 }
 
+
 // Character movement functionality below 
 bool moveCharacter(SOCKET playerSocket, CollidableEntity* entityToMove, const std::vector<int>& newCoords) 
 {
@@ -680,9 +752,13 @@ bool moveCharacter(SOCKET playerSocket, CollidableEntity* entityToMove, const st
 
 
 
-void moveTroopToPosition(SOCKET playerSocket, std::shared_ptr<Troop> troop, const std::vector<int>& targetCoords) 
-{
+void moveTroopToPosition(SOCKET playerSocket, std::shared_ptr<Troop> troop, const std::vector<int>& targetCoords) {
   while (troop->midpoint != targetCoords) {
+    if (troop->defense <= 0) {
+      log("Troop " + std::to_string(troop->id) + " (Client: " + std::to_string(playerSocket) + ") has been destroyed and cannot move.");
+      return;
+    }
+
     std::vector<int> currentCoords = troop->midpoint;
     std::vector<int> nextCoords = currentCoords;
 
@@ -713,6 +789,7 @@ void moveTroopToPosition(SOCKET playerSocket, std::shared_ptr<Troop> troop, cons
     std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Adjust the delay as needed
   }
 }
+
 
 // Functionality for most of the networking stuff below here
 
