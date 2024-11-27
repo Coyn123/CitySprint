@@ -34,36 +34,12 @@ typedef int socklen_t;
 
 #include "misc_lib.h"
 
-// Setup cross-platform libraries above
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // Setting up our constants, function prototypes, and structures below 
 
 // Constants
 const int BOARD_WIDTH = 800;
 const int BOARD_HEIGHT = 600;
 const int TILE_SIZE = 2;
-
-// Function prototypes
-void handlePlayerMessage(SOCKET clientSocket, const std::string& message);
-void gameLogic(SOCKET clientSocket);
-void handleWebSocketHandshake(SOCKET clientSocket, const std::string& request);
-void acceptPlayer(SOCKET serverSocket);
-int checkCollision(const std::vector<int>& circleOne, int ignoreId);
-bool isWithinRadius(const std::vector<int>& point, const std::vector<int>& center, int radius);
-int isColliding(std::vector<int> circleOne, std::vector<int> circleTwo);
 
 // Structure to represent a tile
 struct Tile {
@@ -118,20 +94,6 @@ struct GameState {
   std::mutex stateMutex;
 };
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // Declaring our global variables for the game
 
 GameState gameState;
@@ -144,65 +106,52 @@ std::map<std::string, Building> buildingMap;
 std::mutex clientsMutex;
 std::mutex logMutex;
 
+// Function prototypes
+void handlePlayerMessage(SOCKET clientSocket, const std::string& message);
+void gameLogic(SOCKET clientSocket);
+void handleWebSocketHandshake(SOCKET clientSocket, const std::string& request);
+void acceptPlayer(SOCKET serverSocket);
+int checkCollision(const std::vector<int>& circleOne, int ignoreId);
+bool isWithinRadius(const std::vector<int>& point, const std::vector<int>& center, int radius);
+int isColliding(std::vector<int> circleOne, std::vector<int> circleTwo);
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-void log(const std::string& message) {
+void log(const std::string& message) 
+{
   std::lock_guard<std::mutex> lock(logMutex);
   std::cout << message << std::endl;
   logFile << message << std::endl;
 }
 
-int generateUniqueId() {
+int generateUniqueId() 
+{
   static std::atomic<int> idCounter(1);
   int id = idCounter++;
   log("Generated unique ID: " + std::to_string(id));
   return id;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-void update_player_state(GameState& game_state, SOCKET socket, const PlayerState& state) {
+void update_player_state(GameState& game_state, SOCKET socket, const PlayerState& state) 
+{
   std::lock_guard<std::mutex> lock(game_state.mtx);
   game_state.player_states[socket] = state;
 }
 
-PlayerState get_player_state(GameState& game_state, SOCKET socket) {
+PlayerState get_player_state(GameState& game_state, SOCKET socket) 
+{
   std::lock_guard<std::mutex> lock(game_state.mtx);
   return game_state.player_states[socket];
 }
 
-void remove_player(GameState& game_state, SOCKET socket) {
+void remove_player(GameState& game_state, SOCKET socket) 
+{
   std::lock_guard<std::mutex> lock(game_state.mtx);
   game_state.player_states.erase(socket);
 }
 
-std::string serializePlayerStateToString(const PlayerState& player) {
+std::string serializePlayerStateToString(const PlayerState& player) 
+{
   std::string result;
   result += "{\"player\": {\"coins\":\"";
   result += std::to_string(player.coins);
@@ -220,7 +169,8 @@ std::string serializePlayerStateToString(const PlayerState& player) {
   return result;
 }
 
-void sendPlayerStateDeltaToClient(const PlayerState& player) {
+void sendPlayerStateDeltaToClient(const PlayerState& player) 
+{
   std::string playerState = serializePlayerStateToString(player);
   std::string frame = encodeWebSocketFrame(playerState);
 
@@ -230,29 +180,9 @@ void sendPlayerStateDeltaToClient(const PlayerState& player) {
   }
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // Initialize game board with empty tiles
-void initializeGameState() {
+void initializeGameState() 
+{
   int rows = BOARD_HEIGHT / TILE_SIZE;
   int cols = BOARD_WIDTH / TILE_SIZE;
   gameState.board.resize(rows, std::vector<std::string>(cols, "white"));
@@ -271,7 +201,8 @@ void initializeGameState() {
   log("Game state initialized with " + std::to_string(rows) + " rows and " + std::to_string(cols) + " columns.");
 }
 
-void initializeMaps() {
+void initializeMaps() 
+{
   // SETUP OUR MAPS
   // Troops
   troopMap["Barbarian"] = {
@@ -304,26 +235,9 @@ void initializeMaps() {
   return;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // Function to serialize the game state into a simple string format
-std::string serializeGameStateToString() {
+std::string serializeGameStateToString() 
+{
   std::string result;
   result += "{\"game\": { \"board\": \"";
   if (gameState.changedTiles.empty()) {
@@ -342,7 +256,8 @@ std::string serializeGameStateToString() {
 }
 
 // Function to send game state updates to all clients
-void sendGameStateDeltasToClients() {
+void sendGameStateDeltasToClients() 
+{
   std::lock_guard<std::mutex> lock(gameState.stateMutex);
   if (gameState.changedTiles.empty()) {
     return;
@@ -359,7 +274,8 @@ void sendGameStateDeltasToClients() {
 }
 
 // Some more game state functions related to moving troops
-void temporarilyRemoveTroopFromGameState(Troop* troop) {
+void temporarilyRemoveTroopFromGameState(Troop* troop) 
+{
   if (!troop || troop->midpoint.size() < 2) return;
 
   // Temporarily set the troop's coordinates to an off-board value
@@ -367,7 +283,8 @@ void temporarilyRemoveTroopFromGameState(Troop* troop) {
   troop->midpoint[1] = -1;
 }
 
-void clearCollidingEntities() {
+void clearCollidingEntities() 
+{
   std::lock_guard<std::mutex> lock(gameState.stateMutex);
 
   for (auto& playerPair : gameState.player_states) {
@@ -384,28 +301,9 @@ void clearCollidingEntities() {
   }
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // Functionality for interacting with circles, will organize more in the morning
-
-
-int drawCircle(int (*func)(int, int, const std::string), int x, int y, int radius, const std::string color) {
+int drawCircle(int (*func)(int, int, const std::string), int x, int y, int radius, const std::string color) 
+{
   int centerX = x;
   int centerY = y;
   int d = 3 - 1 * radius;
@@ -434,7 +332,8 @@ int drawCircle(int (*func)(int, int, const std::string), int x, int y, int radiu
   return 0;
 }
 
-int changeGridPoint(int x, int y, const std::string color) {
+int changeGridPoint(int x, int y, const std::string color) 
+{
   std::lock_guard<std::mutex> lock(gameState.stateMutex);
 
   if (x >= 0 && x < BOARD_WIDTH / TILE_SIZE && y >= 0 && y < BOARD_HEIGHT / TILE_SIZE) {
@@ -449,7 +348,8 @@ int changeGridPoint(int x, int y, const std::string color) {
 
 // When not high as fuck, create a functional version of this using lambda functions and
 // a recursive function to handle the for loop logic
-int insertCharacter(std::vector<int> coords, int radius, const std::string color, int ignoreId = -1) {
+int insertCharacter(std::vector<int> coords, int radius, const std::string color, int ignoreId = -1) 
+{
   int centerX = coords[0];
   int centerY = coords[1];
   int d = 3 - 2 * radius;
@@ -489,7 +389,8 @@ int insertCharacter(std::vector<int> coords, int radius, const std::string color
 
 
 
-void updateEntityMidpoint(SOCKET playerSocket, const std::vector<int>& oldMidpoint, const std::vector<int>& newMidpoint) {
+void updateEntityMidpoint(SOCKET playerSocket, const std::vector<int>& oldMidpoint, const std::vector<int>& newMidpoint) 
+{
   std::lock_guard<std::mutex> lock(gameState.stateMutex);
 
   auto it = gameState.player_states.find(playerSocket);
@@ -524,7 +425,8 @@ void updateEntityMidpoint(SOCKET playerSocket, const std::vector<int>& oldMidpoi
 
 
 
-void applyDamageToCollidingEntities(SOCKET playerSocket, CollidableEntity* movingEntity) {
+void applyDamageToCollidingEntities(SOCKET playerSocket, CollidableEntity* movingEntity) 
+{
   std::lock_guard<std::mutex> lock(gameState.stateMutex);
   PlayerState& ourPlayer = gameState.player_states[playerSocket];
 
@@ -585,30 +487,9 @@ void applyDamageToCollidingEntities(SOCKET playerSocket, CollidableEntity* movin
   }
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // Collision logic and functions
-
-void checkForCollidingTroops() {
+void checkForCollidingTroops() 
+{
   std::lock_guard<std::mutex> lock(gameState.stateMutex);
 
   for (auto& player: gameState.player_states) {
@@ -621,7 +502,8 @@ void checkForCollidingTroops() {
   }
 }
 
-int isColliding(std::vector<int> circleOne, std::vector<int> circleTwo) {
+int isColliding(std::vector<int> circleOne, std::vector<int> circleTwo) 
+{
   int xOne = circleOne[0];
   int yOne = circleOne[1];
   int radOne = circleOne[2];
@@ -643,10 +525,8 @@ int isColliding(std::vector<int> circleOne, std::vector<int> circleTwo) {
   return 0;
 }
 
-
-
-
-std::shared_ptr<Troop> findNearestTroop(PlayerState& player, const std::vector<int>& coords) {
+std::shared_ptr<Troop> findNearestTroop(PlayerState& player, const std::vector<int>& coords) 
+{
   std::shared_ptr<Troop> nearestTroop = nullptr;
   int minDistance = std::numeric_limits<int>::max();
 
@@ -667,10 +547,8 @@ std::shared_ptr<Troop> findNearestTroop(PlayerState& player, const std::vector<i
   return nearestTroop;
 }
 
-
-
-
-bool isWithinRadius(const std::vector<int>& point, const std::vector<int>& center, int radius) {
+bool isWithinRadius(const std::vector<int>& point, const std::vector<int>& center, int radius) 
+{
   if (point.size() < 2 || center.size() < 2) {
     log("Invalid point or center size. Point size: " + std::to_string(point.size()) + ", Center size: " + std::to_string(center.size()));
     return false;
@@ -694,7 +572,8 @@ bool isWithinRadius(const std::vector<int>& point, const std::vector<int>& cente
 
 
 
-int checkCollision(const std::vector<int>& circleOne, int ignoreId = -1) {
+int checkCollision(const std::vector<int>& circleOne, int ignoreId = -1) 
+{
   std::lock_guard<std::mutex> lock(gameState.stateMutex);
 
   log("Checking collision for circle with ignoreId: " + std::to_string(ignoreId));
@@ -748,27 +627,9 @@ int checkCollision(const std::vector<int>& circleOne, int ignoreId = -1) {
   return 0;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // Character movement functionality below 
-
-bool moveCharacter(SOCKET playerSocket, CollidableEntity* entityToMove, const std::vector<int>& newCoords) {
+bool moveCharacter(SOCKET playerSocket, CollidableEntity* entityToMove, const std::vector<int>& newCoords) 
+{
   if (!entityToMove || entityToMove->midpoint.size() < 2) {
     log("Invalid entity to move.");
     return false;
@@ -819,7 +680,8 @@ bool moveCharacter(SOCKET playerSocket, CollidableEntity* entityToMove, const st
 
 
 
-void moveTroopToPosition(SOCKET playerSocket, std::shared_ptr<Troop> troop, const std::vector<int>& targetCoords) {
+void moveTroopToPosition(SOCKET playerSocket, std::shared_ptr<Troop> troop, const std::vector<int>& targetCoords) 
+{
   while (troop->midpoint != targetCoords) {
     std::vector<int> currentCoords = troop->midpoint;
     std::vector<int> nextCoords = currentCoords;
@@ -852,31 +714,11 @@ void moveTroopToPosition(SOCKET playerSocket, std::shared_ptr<Troop> troop, cons
   }
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // Functionality for most of the networking stuff below here
 
-
 // Function to handle messages from a client
-void handlePlayerMessage(SOCKET clientSocket, const std::string& message) {
+void handlePlayerMessage(SOCKET clientSocket, const std::string& message) 
+{
   log("Handling client message: " + message);
   std::istringstream iss(message);
   std::string segment;
@@ -1067,7 +909,8 @@ void handlePlayerMessage(SOCKET clientSocket, const std::string& message) {
 
 
 // Threaded client handling function
-void gameLogic(SOCKET clientSocket) {
+void gameLogic(SOCKET clientSocket) 
+{
   char buffer[512];
   int bytesReceived;
 
@@ -1094,11 +937,9 @@ void gameLogic(SOCKET clientSocket) {
   log("Client disconnected.");
 }
 
-
-
-
 // Handle WebSocket handshake
-void handleWebSocketHandshake(SOCKET clientSocket, const std::string& request) {
+void handleWebSocketHandshake(SOCKET clientSocket, const std::string& request) 
+{
   std::istringstream requestStream(request);
   std::string line;
   std::string webSocketKey;
@@ -1133,43 +974,9 @@ void handleWebSocketHandshake(SOCKET clientSocket, const std::string& request) {
   }
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // Accept new client connections
-void acceptPlayer(SOCKET serverSocket) {
+void acceptPlayer(SOCKET serverSocket) 
+{
   sockaddr_in clientAddr;
   socklen_t clientAddrSize = sizeof(clientAddr);
 
@@ -1200,44 +1007,11 @@ void acceptPlayer(SOCKET serverSocket) {
   }
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // This is the more global game loop running in the background, currently facing race condition problems
-void boardLoop() {
+void boardLoop() 
+{
   while (true) {
+    /*
     clearCollidingEntities(); // Clear previous collisions
 
     bool hasEntitiesToProcess = false;
@@ -1283,42 +1057,15 @@ void boardLoop() {
         }
       }
     }
+    */
 
     sendGameStateDeltasToClients();
     std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Adjust the delay to match troop movement speed
   }
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-int main() {
+int main() 
+{
   initializeMaps();
 
   // NETWORK CONFIG
