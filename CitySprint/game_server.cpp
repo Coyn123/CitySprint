@@ -180,7 +180,7 @@ void clearCollidingEntities();
 int drawCircle(int (*func)(int, int, const std::string), int x, int y, int radius, const std::string color);
 int changeGridPoint(int x, int y, const std::string color);
 int insertCharacter(std::vector<int> coords, int radius, const std::string color, int ignoreId);
-void updateEntityMidpoint(SOCKET playerSocket, const std::vector<int>& oldMidpoint, const std::vector<int>& newMidpoint);
+int updateEntityMidpoint(SOCKET playerSocket, const std::vector<int>& oldMidpoint, const std::vector<int>& newMidpoint);
 void removeTroopFromGameState(GameState& gameState, PlayerState& playerState, int troopId);
 void applyDamageToCollidingEntities(SOCKET playerSocket, CollidableEntity* movingEntity);
 void checkForCollidingTroops();
@@ -446,13 +446,13 @@ int insertCharacter(std::vector<int> coords, int radius, const std::string color
   return 1;
 }
 
-void updateEntityMidpoint(SOCKET playerSocket, const std::vector<int>& oldMidpoint, const std::vector<int>& newMidpoint) {
+int updateEntityMidpoint(SOCKET playerSocket, const std::vector<int>& oldMidpoint, const std::vector<int>& newMidpoint) {
   std::lock_guard<std::mutex> lock(gameState.stateMutex);
 
   auto it = gameState.player_states.find(playerSocket);
   if (it == gameState.player_states.end()) {
     log("Player not found in game state.");
-    return;
+    return 0;
   }
 
   PlayerState& playerState = it->second;
@@ -460,22 +460,23 @@ void updateEntityMidpoint(SOCKET playerSocket, const std::vector<int>& oldMidpoi
   for (auto& city : playerState.cities) {
     if (city.midpoint == oldMidpoint) {
       city.midpoint = newMidpoint;
-      return;
+      return 1;
     }
     for (auto& troop : city.troops) {
       if (troop.midpoint == oldMidpoint) {
         troop.midpoint = newMidpoint;
-        return;
+        return 1;
       }
     }
     for (auto& building : city.buildings) {
       if (building.midpoint == oldMidpoint) {
         building.midpoint = newMidpoint;
-        return;
+        return 1;
       }
     }
   }
   log("Entity with the specified midpoint not found.");
+  return 0;
 }
 
 
@@ -771,18 +772,18 @@ bool moveCharacter(SOCKET playerSocket, CollidableEntity* entityToMove, const st
   insertCharacter(newCoords, radius, color, entityId);
 
   // Update the entity's position in the global game state
-  updateEntityMidpoint(playerSocket, currentCoords, newCoords);
+  if (updateEntityMidpoint(playerSocket, currentCoords, newCoords)) {
 
-  // Update the entity's midpoint in the local entity object
-  entityToMove->midpoint = newCoords;
+    // Update the entity's midpoint in the local entity object
+    entityToMove->midpoint = newCoords;
 
-  // Add the changed tiles to the changedTiles vector
-  {
-    std::lock_guard<std::mutex> lock(gameState.stateMutex);
-    gameState.changedTiles.push_back({ currentX, currentY, "#696969" });
-    gameState.changedTiles.push_back({ newCoords[0], newCoords[1], color });
+    // Add the changed tiles to the changedTiles vector
+    {
+      std::lock_guard<std::mutex> lock(gameState.stateMutex);
+      gameState.changedTiles.push_back({ currentX, currentY, "#696969" });
+      gameState.changedTiles.push_back({ newCoords[0], newCoords[1], color });
+    }
   }
-
   // Send game state deltas to clients
   sendGameStateDeltasToClients();
 
@@ -866,7 +867,7 @@ void handlePlayerMessage(SOCKET clientSocket, const std::string& message) {
           int dx = coords[0] - city.midpoint[0];
           int dy = coords[1] - city.midpoint[1];
           int distanceSquared = dx * dx + dy * dy;
-          if (distanceSquared < 100 * 100) {
+          if (distanceSquared < 200 * 200) {
               tooClose = true;
               break;
           }
@@ -917,7 +918,7 @@ void handlePlayerMessage(SOCKET clientSocket, const std::string& message) {
   // Check if the coordinates are within the radius of a city plus an additional 15 tiles
   bool withinCityRadius = false;
   for (const auto& city : player.cities) {
-    if (isWithinRadius(coords, city.midpoint, city.size + 30)) {
+    if (isWithinRadius(coords, city.midpoint, city.size + 100)) {
       withinCityRadius = true;
       break;
     }
