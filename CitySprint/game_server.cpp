@@ -393,7 +393,8 @@ void clearCollidingEntities() {
 }
 
 int changeGridPoint(int x, int y, const std::string color) {
-  std::lock_guard<std::mutex> lock(gameState.stateMutex);
+  if (color != "#696969") 
+    std::lock_guard<std::mutex> lock(gameState.stateMutex);
 
   if (x >= 0 && x < BOARD_WIDTH / TILE_SIZE && y >= 0 && y < BOARD_HEIGHT / TILE_SIZE) {
     gameState.board[y][x] = color;
@@ -417,10 +418,11 @@ int insertCharacter(std::vector<int> coords, int radius, const std::string color
   std::vector<int> circle = { coords[0], coords[1], radius };
 
   log("Creating a character at (" + std::to_string(centerX) + ", " + std::to_string(centerY) + ")");
-
-  if (checkCollision(circle, ignoreId)) {
-    log("Collision detected at (" + std::to_string(centerX) + ", " + std::to_string(centerY) + ")");
-    return 0;
+  if (color != "#696969") {
+    if (checkCollision(circle, ignoreId)) {
+      log("Collision detected at (" + std::to_string(centerX) + ", " + std::to_string(centerY) + ")");
+      return 0;
+    }
   }
 
   while (y >= x) {
@@ -816,7 +818,7 @@ void moveTroopToPosition(SOCKET playerSocket, std::shared_ptr<Troop> troop, cons
     // Log the updated midpoint after each move
     log("Troop " + std::to_string(troop->id) + " (Client: " + std::to_string(playerSocket) + ") moved to (" + std::to_string(troop->midpoint[0]) + ", " + std::to_string(troop->midpoint[1]) + ")");
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Adjust the delay as needed
+    std::this_thread::sleep_for(std::chrono::milliseconds(50)); // Adjust the delay as needed
   }
 }
 
@@ -1150,7 +1152,7 @@ void boardLoop() {
     }
 
     sendGameStateDeltasToClients();
-    std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Add a delay to avoid busy-waiting
+    std::this_thread::sleep_for(std::chrono::milliseconds(50)); // Add a delay to avoid busy-waiting
   }
 }
 
