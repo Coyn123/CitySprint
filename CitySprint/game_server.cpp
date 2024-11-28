@@ -31,6 +31,9 @@
 #include <unordered_map>
 #include <limits>
 #include <future>
+#include <queue>
+#include <functional>
+#include <condition_variable>
 
 #include "misc_lib.h"
 
@@ -94,6 +97,59 @@ struct GameState {
   std::mutex stateMutex;
 };
 
+class ThreadPool {
+public:
+    ThreadPool(size_t numThreads);
+    ~ThreadPool();
+
+    void enqueue(std::function<void()> task);
+
+private:
+    std::vector<std::thread> workers;
+    std::queue<std::function<void()>> tasks;
+
+    std::mutex queueMutex;
+    std::condition_variable condition;
+    bool stop;
+};
+
+ThreadPool::ThreadPool(size_t numThreads) : stop(false) {
+    for (size_t i = 0; i < numThreads; ++i) {
+        workers.emplace_back([this] {
+            for (;;) {
+                std::function<void()> task;
+
+                {
+                    std::unique_lock<std::mutex> lock(this->queueMutex);
+                    this->condition.wait(lock, [this] { return this->stop || !this->tasks.empty(); });
+                    if (this->stop && this->tasks.empty()) return;
+                    task = std::move(this->tasks.front());
+                    this->tasks.pop();
+                }
+
+                task();
+            }
+        });
+    }
+}
+
+ThreadPool::~ThreadPool() {
+    {
+        std::unique_lock<std::mutex> lock(queueMutex);
+        stop = true;
+    }
+    condition.notify_all();
+    for (std::thread &worker : workers) worker.join();
+}
+
+void ThreadPool::enqueue(std::function<void()> task) {
+    {
+        std::unique_lock<std::mutex> lock(queueMutex);
+        tasks.push(std::move(task));
+    }
+    condition.notify_one();
+}
+
 // Declaring our global variables for the game
 
 GameState gameState;
@@ -105,6 +161,8 @@ std::map<std::string, Building> buildingMap;
 
 std::mutex clientsMutex;
 std::mutex logMutex;
+
+ThreadPool threadPool(std::thread::hardware_concurrency());
 
 void log(const std::string& message);
 int generateUniqueId();
@@ -334,36 +392,6 @@ void clearCollidingEntities() {
   }
 }
 
-// Functionality for interacting with circles, will organize more in the morning
-int drawCircle(int (*func)(int, int, const std::string), int x, int y, int radius, const std::string color) {
-  int centerX = x;
-  int centerY = y;
-  int d = 3 - 1 * radius;
-  y = radius;
-  x = 0;
-
-  while (y >= x) {
-    func(centerX + x, centerY + y, color);
-    func(centerX - x, centerY + y, color);
-    func(centerX + x, centerY - y, color);
-    func(centerX - x, centerY - y, color);
-    func(centerX + y, centerY + x, color);
-    func(centerX - y, centerY + x, color);
-    func(centerX + y, centerY - x, color);
-    func(centerX - y, centerY - x, color);
-
-    if (d <= 0) {
-    d += 4 * x + 6;
-    }
-    else {
-    d += 4 * (x - y) + 10;
-    y--;
-    }
-    x++;
-  }
-  return 0;
-}
-
 int changeGridPoint(int x, int y, const std::string color) {
   std::lock_guard<std::mutex> lock(gameState.stateMutex);
 
@@ -449,14 +477,13 @@ void updateEntityMidpoint(SOCKET playerSocket, const std::vector<int>& oldMidpoi
 }
 
 
-void removeTroopFromGameState(GameState& gameState, PlayerState& playerState, int troopId) 
-{
+void removeTroopFromGameState(GameState& gameState, PlayerState& playerState, int troopId) {
   log("Attempting to remove troop with ID: " + std::to_string(troopId));
 
   for (auto& city : playerState.cities) {
     auto troopIt = std::find_if(city.troops.begin(), city.troops.end(), [troopId](const Troop& troop) {
       return troop.id == troopId;
-    });
+      });
 
     if (troopIt != city.troops.end()) {
       log("Troop found. Removing character from the board");
@@ -477,92 +504,107 @@ void removeTroopFromGameState(GameState& gameState, PlayerState& playerState, in
   log("Troop with ID " + std::to_string(troopId) + " not found in any city.");
 }
 
-void applyDamageToCollidingEntities(SOCKET playerSocket, CollidableEntity* movingEntity) {
-  std::lock_guard<std::mutex> lock(gameState.stateMutex);
-  PlayerState& ourPlayer = gameState.player_states[playerSocket];
-
-  log("Our player: " + std::to_string(ourPlayer.socket));
-
-  log("Applying damage for moving entity " + std::to_string(movingEntity->id) + " (Client: " + std::to_string(playerSocket) + ")");
-
-  for (auto& playerPair : gameState.player_states) {
-    PlayerState& player = playerPair.second;
-    log("Testing against player: " + std::to_string(playerPair.first));
-    if (playerPair.first == playerSocket) {
-      log("Skipping our own player.");
-      continue;
-    }
-    for (auto& city : player.cities) {
-      log("Testing against city: " + std::to_string(city.id));
-      if (city.id != movingEntity->id && city.midpoint.size() >= 2 && movingEntity->midpoint.size() >= 2 && isWithinRadius(city.midpoint, movingEntity->midpoint, movingEntity->size + city.size)) {
-        log("Testing against city: " + std::to_string(city.id));
-        int cityDamage = movingEntity->attack;
-        int movingEntityDamage = city.attack;
-        city.defense -= cityDamage;
-        movingEntity->defense -= movingEntityDamage;
-        movingEntity->collidingEntities.push_back(city.id);
-        city.collidingEntities.push_back(movingEntity->id);
-        log("Entity " + std::to_string(movingEntity->id) + " (Client: " + std::to_string(playerSocket) + ") dealt " + std::to_string(cityDamage) + " damage to City " + std::to_string(city.id) + " (Client: " + std::to_string(playerPair.first) + "). City defense: " + std::to_string(city.defense));
-        log("City " + std::to_string(city.id) + " (Client: " + std::to_string(playerPair.first) + ") dealt " + std::to_string(movingEntityDamage) + " damage to Entity " + std::to_string(movingEntity->id) + " (Client: " + std::to_string(playerSocket) + "). Entity defense: " + std::to_string(movingEntity->defense));
-      }
-      for (auto& troop : city.troops) {
-        log("Testing against troop: " + std::to_string(troop.midpoint[0]) + ", " + std::to_string(troop.midpoint[1]) + " : " + std::to_string(movingEntity->midpoint[0]) + ", " + std::to_string(movingEntity->midpoint[1]));
-        std::vector<int> circleOne, circleTwo;
-        int newRadius = (troop.size + movingEntity->size) + 2;
-        log(std::to_string(isWithinRadius(troop.midpoint, movingEntity->midpoint, newRadius)));
-        if (isWithinRadius(troop.midpoint, movingEntity->midpoint, newRadius)) {
-          log("Troops are officially fighting");
-          int troopDamage = movingEntity->attack;
-          int movingEntityDamage = troop.attack;
-          troop.defense -= troopDamage;
-          movingEntity->defense -= movingEntityDamage;
-          movingEntity->collidingEntities.push_back(troop.id);
-          troop.collidingEntities.push_back(movingEntity->id);
-          log("Entity " + std::to_string(movingEntity->id) + " (Client: " + std::to_string(playerSocket) + ") dealt " + std::to_string(troopDamage) + " damage to Troop " + std::to_string(troop.id) + " (Client: " + std::to_string(playerPair.first) + "). Troop defense: " + std::to_string(troop.defense));
-          log("Troop " + std::to_string(troop.id) + " (Client: " + std::to_string(playerPair.first) + ") dealt " + std::to_string(movingEntityDamage) + " damage to Entity " + std::to_string(movingEntity->id) + " (Client: " + std::to_string(playerSocket) + "). Entity defense: " + std::to_string(movingEntity->defense));
-
-          // Remove troop if its defense is zero or less
-          if (troop.defense <= 0) {
-            log("Troop " + std::to_string(troop.id) + " (Client: " + std::to_string(playerPair.first) + ") has been destroyed.");
-            insertCharacter(troop.midpoint, troop.size, "#696969", troop.id); // Overwrite the spot on the board
-            city.troops.erase(std::remove_if(city.troops.begin(), city.troops.end(), [&](const Troop& t) { return t.id == troop.id; }), city.troops.end());
-          }
-          
-          if (movingEntity->defense <= 0) {
-            log("Our troop is dead");
-            removeTroopFromGameState(gameState, ourPlayer, movingEntity->id);
-            update_game_state(gameState); // Update game state after removal
-            return;
-          }
-        }
-      }
-      for (auto& building : city.buildings) {
-        if (building.id != movingEntity->id && building.midpoint.size() >= 2 && movingEntity->midpoint.size() >= 2 && isWithinRadius(building.midpoint, movingEntity->midpoint, movingEntity->size + building.size)) {
-          int buildingDamage = movingEntity->attack;
-          int movingEntityDamage = building.attack;
-          building.defense -= buildingDamage;
-          movingEntity->defense -= movingEntityDamage;
-          movingEntity->collidingEntities.push_back(building.id);
-          building.collidingEntities.push_back(movingEntity->id);
-          log("Entity " + std::to_string(movingEntity->id) + " (Client: " + std::to_string(playerSocket) + ") dealt " + std::to_string(buildingDamage) + " damage to Building " + std::to_string(building.id) + " (Client: " + std::to_string(playerPair.first) + "). Building defense: " + std::to_string(building.defense));
-          log("Building " + std::to_string(building.id) + " (Client: " + std::to_string(playerPair.first) + ") dealt " + std::to_string(movingEntityDamage) + " damage to Entity " + std::to_string(movingEntity->id) + " (Client: " + std::to_string(playerSocket) + "). Entity defense: " + std::to_string(movingEntity->defense));
+void handleTroopCollisions() {
+  threadPool.enqueue([] {
+    std::lock_guard<std::mutex> lock(gameState.stateMutex);
+    for (auto& playerPair : gameState.player_states) {
+      PlayerState& player = playerPair.second;
+      for (auto& city : player.cities) {
+        for (auto& troop : city.troops) {
+          applyDamageToCollidingEntities(player.socket, &troop);
         }
       }
     }
-  }
-
-  // Remove moving entity if its defense is zero or less
-  if (movingEntity->defense <= 0) {
-    log("Entity " + std::to_string(movingEntity->id) + " (Client: " + std::to_string(playerSocket) + ") has been destroyed.");
-    removeTroopFromGameState(gameState, ourPlayer, movingEntity->id);
-    update_game_state(gameState);
-    insertCharacter(movingEntity->midpoint, movingEntity->size, "#696969", movingEntity->id); // Overwrite the spot on the board
-    for (auto& city : ourPlayer.cities) {
-      city.troops.erase(std::remove_if(city.troops.begin(), city.troops.end(), [&](const Troop& t) { return t.id == movingEntity->id; }), city.troops.end());
-    }
-  }
-  update_game_state(gameState); // Update game state after applying damage
+  });
 }
+
+void applyDamageToCollidingEntities(SOCKET playerSocket, CollidableEntity* movingEntity) {
+    std::lock_guard<std::mutex> lock(gameState.stateMutex);
+    PlayerState& ourPlayer = gameState.player_states[playerSocket];
+
+    log("Our player: " + std::to_string(ourPlayer.socket));
+
+    log("Applying damage for moving entity " + std::to_string(movingEntity->id) + " (Client: " + std::to_string(playerSocket) + ")");
+
+    for (auto& playerPair : gameState.player_states) {
+        PlayerState& player = playerPair.second;
+        log("Testing against player: " + std::to_string(playerPair.first));
+        if (playerPair.first == playerSocket) {
+            log("Skipping our own player.");
+            continue;
+        }
+        for (auto& city : player.cities) {
+            log("Testing against city: " + std::to_string(city.id));
+            if (city.id != movingEntity->id && city.midpoint.size() >= 2 && movingEntity->midpoint.size() >= 2 && isWithinRadius(city.midpoint, movingEntity->midpoint, movingEntity->size + city.size)) {
+                log("Testing against city: " + std::to_string(city.id));
+                int cityDamage = movingEntity->attack;
+                int movingEntityDamage = city.attack;
+                city.defense -= cityDamage;
+                movingEntity->defense -= movingEntityDamage;
+                movingEntity->collidingEntities.push_back(city.id);
+                city.collidingEntities.push_back(movingEntity->id);
+                log("Entity " + std::to_string(movingEntity->id) + " (Client: " + std::to_string(playerSocket) + ") dealt " + std::to_string(cityDamage) + " damage to City " + std::to_string(city.id) + " (Client: " + std::to_string(playerPair.first) + "). City defense: " + std::to_string(city.defense));
+                log("City " + std::to_string(city.id) + " (Client: " + std::to_string(playerPair.first) + ") dealt " + std::to_string(movingEntityDamage) + " damage to Entity " + std::to_string(movingEntity->id) + " (Client: " + std::to_string(playerSocket) + "). Entity defense: " + std::to_string(movingEntity->defense));
+            }
+            for (auto& troop : city.troops) {
+                log("Testing against troop: " + std::to_string(troop.midpoint[0]) + ", " + std::to_string(troop.midpoint[1]) + " : " + std::to_string(movingEntity->midpoint[0]) + ", " + std::to_string(movingEntity->midpoint[1]));
+                std::vector<int> circleOne, circleTwo;
+                int newRadius = (troop.size + movingEntity->size) + 2;
+                log(std::to_string(isWithinRadius(troop.midpoint, movingEntity->midpoint, newRadius)));
+                if (isWithinRadius(troop.midpoint, movingEntity->midpoint, newRadius)) {
+                    log("Troops are officially fighting");
+                    int troopDamage = movingEntity->attack;
+                    int movingEntityDamage = troop.attack;
+                    troop.defense -= troopDamage;
+                    movingEntity->defense -= movingEntityDamage;
+                    movingEntity->collidingEntities.push_back(troop.id);
+                    troop.collidingEntities.push_back(movingEntity->id);
+                    log("Entity " + std::to_string(movingEntity->id) + " (Client: " + std::to_string(playerSocket) + ") dealt " + std::to_string(troopDamage) + " damage to Troop " + std::to_string(troop.id) + " (Client: " + std::to_string(playerPair.first) + "). Troop defense: " + std::to_string(troop.defense));
+                    log("Troop " + std::to_string(troop.id) + " (Client: " + std::to_string(playerPair.first) + ") dealt " + std::to_string(movingEntityDamage) + " damage to Entity " + std::to_string(movingEntity->id) + " (Client: " + std::to_string(playerSocket) + "). Entity defense: " + std::to_string(movingEntity->defense));
+
+                    // Remove troop if its defense is zero or less
+                    if (troop.defense <= 0) {
+                        log("Troop " + std::to_string(troop.id) + " (Client: " + std::to_string(playerPair.first) + ") has been destroyed.");
+                        insertCharacter(troop.midpoint, troop.size, "#696969", troop.id); // Overwrite the spot on the board
+                        city.troops.erase(std::remove_if(city.troops.begin(), city.troops.end(), [&](const Troop& t) { return t.id == troop.id; }), city.troops.end());
+                    }
+
+                    if (movingEntity->defense <= 0) {
+                        log("Our troop is dead");
+                        removeTroopFromGameState(gameState, ourPlayer, movingEntity->id);
+                        update_game_state(gameState); // Update game state after removal
+                        return;
+                    }
+                }
+            }
+            for (auto& building : city.buildings) {
+                if (building.id != movingEntity->id && building.midpoint.size() >= 2 && movingEntity->midpoint.size() >= 2 && isWithinRadius(building.midpoint, movingEntity->midpoint, movingEntity->size + building.size)) {
+                    int buildingDamage = movingEntity->attack;
+                    int movingEntityDamage = building.attack;
+                    building.defense -= buildingDamage;
+                    movingEntity->defense -= movingEntityDamage;
+                    movingEntity->collidingEntities.push_back(building.id);
+                    building.collidingEntities.push_back(movingEntity->id);
+                    log("Entity " + std::to_string(movingEntity->id) + " (Client: " + std::to_string(playerSocket) + ") dealt " + std::to_string(buildingDamage) + " damage to Building " + std::to_string(building.id) + " (Client: " + std::to_string(playerPair.first) + "). Building defense: " + std::to_string(building.defense));
+                    log("Building " + std::to_string(building.id) + " (Client: " + std::to_string(playerPair.first) + ") dealt " + std::to_string(movingEntityDamage) + " damage to Entity " + std::to_string(movingEntity->id) + " (Client: " + std::to_string(playerSocket) + "). Entity defense: " + std::to_string(movingEntity->defense));
+                }
+            }
+        }
+    }
+
+    // Remove moving entity if its defense is zero or less
+    if (movingEntity->defense <= 0) {
+        log("Entity " + std::to_string(movingEntity->id) + " (Client: " + std::to_string(playerSocket) + ") has been destroyed.");
+        removeTroopFromGameState(gameState, ourPlayer, movingEntity->id);
+        update_game_state(gameState);
+        insertCharacter(movingEntity->midpoint, movingEntity->size, "#696969", movingEntity->id); // Overwrite the spot on the board
+        for (auto& city : ourPlayer.cities) {
+            city.troops.erase(std::remove_if(city.troops.begin(), city.troops.end(), [&](const Troop& t) { return t.id == movingEntity->id; }), city.troops.end());
+        }
+    }
+    update_game_state(gameState); // Update game state after applying damage
+}
+
 
 // Collision logic and functions
 void checkForCollidingTroops() {
@@ -986,9 +1028,13 @@ void gameLogic(SOCKET clientSocket) {
     std::string message(buffer, bytesReceived);
     std::string decodedMessage = decodeWebSocketFrame(message);  // Decoding WebSocket frame
     log("Decoded message: " + decodedMessage);
-    handlePlayerMessage(clientSocket, decodedMessage);
+
+    // Submit the task to the thread pool
+    threadPool.enqueue([clientSocket, decodedMessage] {
+      handlePlayerMessage(clientSocket, decodedMessage);
+      });
   }
-    closesocket(clientSocket);
+  closesocket(clientSocket);
   {
     std::lock_guard<std::mutex> lock(gameState.stateMutex);
     clients.erase(clientSocket);
@@ -1033,7 +1079,7 @@ void handleWebSocketHandshake(SOCKET clientSocket, const std::string& request) {
 }
 
 // Accept new client connections
-void acceptPlayer(SOCKET serverSocket) {
+void acceptPlayer(SOCKET serverSocket, ThreadPool& threadPool) {
   sockaddr_in clientAddr;
   socklen_t clientAddrSize = sizeof(clientAddr);
 
@@ -1056,7 +1102,9 @@ void acceptPlayer(SOCKET serverSocket) {
     if (bytesReceived > 0) {
       std::string request(buffer, bytesReceived);
       handleWebSocketHandshake(clientSocket, request);
-      std::thread(gameLogic, clientSocket).detach(); // Handle each client in a separate thread
+      threadPool.enqueue([clientSocket] {
+        gameLogic(clientSocket);
+        });
     }
     else {
       log("Failed to receive handshake request: " + std::to_string(WSAGetLastError()));
@@ -1077,20 +1125,20 @@ void boardLoop() {
         PlayerState& player = playerPair.second;
         for (auto& city : player.cities) {
           if (!city.collidingEntities.empty()) {
-              hasEntitiesToProcess = true;
-              break;
+            hasEntitiesToProcess = true;
+            break;
           }
           for (auto& troop : city.troops) {
-              if (!troop.collidingEntities.empty()) {
-                  hasEntitiesToProcess = true;
-                  break;
-              }
+            if (!troop.collidingEntities.empty()) {
+              hasEntitiesToProcess = true;
+              break;
+            }
           }
           for (auto& building : city.buildings) {
-              if (!building.collidingEntities.empty()) {
-                  hasEntitiesToProcess = true;
-                  break;
-              }
+            if (!building.collidingEntities.empty()) {
+              hasEntitiesToProcess = true;
+              break;
+            }
           }
         }
         if (hasEntitiesToProcess) break;
@@ -1098,19 +1146,7 @@ void boardLoop() {
     }
 
     if (hasEntitiesToProcess) {
-      std::lock_guard<std::mutex> lock(gameState.stateMutex);
-      for (auto& playerPair : gameState.player_states) {
-        PlayerState& player = playerPair.second;
-        for (auto& city : player.cities) {
-          applyDamageToCollidingEntities(player.socket, &city);
-          for (auto& troop : city.troops) {
-              applyDamageToCollidingEntities(player.socket, &troop);
-          }
-          for (auto& building : city.buildings) {
-              applyDamageToCollidingEntities(player.socket, &building);
-          }
-        }
-      }
+      handleTroopCollisions();
     }
 
     sendGameStateDeltasToClients();
@@ -1118,20 +1154,22 @@ void boardLoop() {
   }
 }
 
+
+
 int main() {
   initializeMaps();
 
   // NETWORK CONFIG
-  #ifdef _WIN32
-    WSADATA wsaData;
-    SOCKET serverSocket;
-    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-      std::cerr << "WSAStartup failed: " << WSAGetLastError() << std::endl;
-      return 1;
-    }
-  #else
-    SOCKET serverSocket;
-  #endif
+#ifdef _WIN32
+  WSADATA wsaData;
+  SOCKET serverSocket;
+  if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
+    std::cerr << "WSAStartup failed: " << WSAGetLastError() << std::endl;
+    return 1;
+  }
+#else
+  SOCKET serverSocket;
+#endif
 
   serverSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
   if (serverSocket == INVALID_SOCKET) {
@@ -1147,33 +1185,35 @@ int main() {
   if (bind(serverSocket, (struct sockaddr*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR) {
     std::cerr << "Bind failed: " << WSAGetLastError() << std::endl;
     closesocket(serverSocket);
-    #ifdef _WIN32
-      WSACleanup();
-    #endif
+#ifdef _WIN32
+    WSACleanup();
+#endif
     return 1;
   }
 
   if (listen(serverSocket, SOMAXCONN) == SOCKET_ERROR) {
     std::cerr << "Listen failed: " << WSAGetLastError() << std::endl;
     closesocket(serverSocket);
-    #ifdef _WIN32
-      WSACleanup();
-    #endif
+#ifdef _WIN32
+    WSACleanup();
+#endif
     return 1;
   }
 
   log("Listening on port 9001.");
   initializeGameState();
 
-  std::thread acceptThread(acceptPlayer, serverSocket);
+  std::thread acceptThread([serverSocket]() {
+    acceptPlayer(serverSocket, std::ref(threadPool));
+    });
   boardLoop(); // Run the board loop in the main thread
 
   acceptThread.join();
 
   closesocket(serverSocket);
-  #ifdef _WIN32
-    WSACleanup();
-  #endif
+#ifdef _WIN32
+  WSACleanup();
+#endif
   logFile.close();
   return 0;
 }
