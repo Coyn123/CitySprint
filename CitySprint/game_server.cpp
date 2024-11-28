@@ -772,17 +772,16 @@ bool moveCharacter(SOCKET playerSocket, CollidableEntity* entityToMove, const st
   insertCharacter(newCoords, radius, color, entityId);
 
   // Update the entity's position in the global game state
-  if (updateEntityMidpoint(playerSocket, currentCoords, newCoords)) {
+  int res = updateEntityMidpoint(playerSocket, currentCoords, newCoords);
 
-    // Update the entity's midpoint in the local entity object
-    entityToMove->midpoint = newCoords;
+  // Update the entity's midpoint in the local entity object
+  entityToMove->midpoint = newCoords;
 
-    // Add the changed tiles to the changedTiles vector
-    {
-      std::lock_guard<std::mutex> lock(gameState.stateMutex);
-      gameState.changedTiles.push_back({ currentX, currentY, "#696969" });
-      gameState.changedTiles.push_back({ newCoords[0], newCoords[1], color });
-    }
+  // Add the changed tiles to the changedTiles vector
+  {
+    std::lock_guard<std::mutex> lock(gameState.stateMutex);
+    gameState.changedTiles.push_back({ currentX, currentY, "#696969" });
+    gameState.changedTiles.push_back({ newCoords[0], newCoords[1], color });
   }
   // Send game state deltas to clients
   sendGameStateDeltasToClients();
