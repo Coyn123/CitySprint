@@ -573,9 +573,15 @@ void removeEntityFromGameState(GameState& gameState, PlayerState& playerState, i
 
 void handleTroopCollisions() 
 {
-  std::lock_guard<std::mutex> lock(gameState.stateMutex);
-  for (auto& playerPair : gameState.playerStates) {
-    PlayerState& player = playerPair.second;
+  std::vector<PlayerState> playerStates;
+  {
+    std::lock_guard<std::mutex> lock(gameState.stateMutex);
+    for (const auto& playerPair : gameState.playerStates) {
+      playerStates.push_back(playerPair.second);
+    }
+  }
+
+  for (auto& player : playerStates) {
     for (auto& city : player.cities) {
       for (auto& troop : city.troops) {
         applyDamageToCollidingEntities(player.socket, &troop);
@@ -586,10 +592,13 @@ void handleTroopCollisions()
 
 void applyDamageToCollidingEntities(SOCKET playerSocket, CollidableEntity* entity)
 {
-  std::lock_guard<std::mutex> lock(gameState.stateMutex);
-  PlayerState& ourPlayer = gameState.playerStates[playerSocket];
+  PlayerState* ourPlayer;
+  {
+    std::scoped_lock<std::mutex> lock(gameState.stateMutex);
+    ourPlayer = &gameState.playerStates[playerSocket];
+  }
 
-  log("Our player: " + std::to_string(ourPlayer.socket));
+  log("Our player: " + std::to_string(ourPlayer->socket));
 
   log("Applying damage for moving entity " + std::to_string(entity->id) + " (Client: " + std::to_string(playerSocket) + ")");
 
@@ -642,7 +651,7 @@ void applyDamageToCollidingEntities(SOCKET playerSocket, CollidableEntity* entit
 
           if (entity->defense <= 0) {
             log("Our troop is dead");
-            removeEntityFromGameState(gameState, ourPlayer, entity->id);
+            removeEntityFromGameState(gameState, *ourPlayer, entity->id);
             update_game_state(gameState); // Update game state after removal
             return;
           }
@@ -672,7 +681,7 @@ void applyDamageToCollidingEntities(SOCKET playerSocket, CollidableEntity* entit
 
           if (entity->defense <= 0) {
             log("Our troop is dead");
-            removeEntityFromGameState(gameState, ourPlayer, entity->id);
+            removeEntityFromGameState(gameState, *ourPlayer, entity->id);
             update_game_state(gameState); // Update game state after removal
             return;
           }
@@ -684,10 +693,10 @@ void applyDamageToCollidingEntities(SOCKET playerSocket, CollidableEntity* entit
   // Remove moving entity if its defense is zero or less
   if (entity->defense <= 0) {
     log("Entity " + std::to_string(entity->id) + " (Client: " + std::to_string(playerSocket) + ") has been destroyed.");
-    removeEntityFromGameState(gameState, ourPlayer, entity->id);
+    removeEntityFromGameState(gameState, *ourPlayer, entity->id);
     update_game_state(gameState);
     insertCharacter(entity->midpoint, entity->size, "#696969", entity->id); // Overwrite the spot on the board
-    for (auto& city : ourPlayer.cities) {
+    for (auto& city : ourPlayer->cities) {
       city.troops.erase(std::remove_if(city.troops.begin(), city.troops.end(), [&](const Troop& t) { return t.id == entity->id; }), city.troops.end());
     }
   }
