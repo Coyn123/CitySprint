@@ -94,6 +94,7 @@ struct GameState {
   std::vector<std::vector<std::string>> board; // 2D board representing tile colors
   std::vector<Tile> changedTiles; // List of changed tiles
   std::mutex stateMutex;
+  std::chrono::time_point<std::chrono::steady_clock> lastUpdate; // Add this line
 };
 
 class ThreadPool {
@@ -252,7 +253,6 @@ void sendPlayerStateDeltaToClient(const PlayerState& player)
 {
   std::string playerState = serializePlayerStateToString(player);
   std::string frame = encodeWebSocketFrame(playerState);
-
   int result = send(player.socket, frame.c_str(), static_cast<int>(frame.size()), 0);
   if (result == SOCKET_ERROR) {
     log("Failed to send update to client: " + std::to_string(WSAGetLastError()));
@@ -421,8 +421,7 @@ int changeGridPoint(int x, int y, const std::string color)
   return 0;
 }
 
-// When not high as fuck, create a functional version of this using lambda functions and
-// a recursive function to handle the for loop logic
+// Functionality to insert a character using the bresenham's circle generation algorithm
 int insertCharacter(std::vector<int> coords, int radius, const std::string color, int ignoreId = -1) 
 {
   int centerX = coords[0];
@@ -1149,7 +1148,7 @@ void gameLogic(SOCKET clientSocket)
   // Initialize player state
   PlayerState player_state;
   player_state.socket = clientSocket;
-  player_state.coins = 0; // Example initial state
+  player_state.coins = 1000; // Example initial state
   player_state.phase = 0;
 
   // Store the initial state in the GameState structure
@@ -1247,6 +1246,31 @@ void acceptPlayer(SOCKET serverSocket, ThreadPool& threadPool)
   }
 }
 
+void updateCoinCounts()
+{
+  auto now = std::chrono::steady_clock::now();
+  auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - gameState.lastUpdate);
+
+  if (elapsed.count() >= 1) {
+    std::lock_guard<std::mutex> lock(gameState.stateMutex);
+
+    for (auto& playerPair : gameState.playerStates) {
+      PlayerState& player = playerPair.second;
+      for (auto& city : player.cities) {
+        for (auto& building : city.buildings) {
+          log("Adding " + std::to_string(building.coins) + " coins to city " + std::to_string(city.id));
+          city.coins += building.coins;
+          player.coins += building.coins;
+        }
+      }
+      // Send the updated player state to the client
+      sendPlayerStateDeltaToClient(player);
+    }
+
+    gameState.lastUpdate = now; // Update the last update time
+  }
+}
+
 // This is the more global game loop running in the background, currently facing race condition problems
 void boardLoop() 
 {
@@ -1284,13 +1308,11 @@ void boardLoop()
     if (hasEntitiesToProcess) {
       handleTroopCollisions();
     }
-
+    updateCoinCounts();
     sendGameStateDeltasToClients();
-    std::this_thread::sleep_for(std::chrono::milliseconds(50)); // Add a delay to avoid busy-waiting
+    std::this_thread::sleep_for(std::chrono::milliseconds(16)); // Add a delay to avoid busy-waiting
   }
 }
-
-
 
 int main() 
 {
