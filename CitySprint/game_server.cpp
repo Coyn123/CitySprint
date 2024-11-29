@@ -79,6 +79,7 @@ struct City : public CollidableEntity {
   std::vector<Troop> troops;
   std::vector<Building> buildings;
 };
+
 // Structure to represent player state
 struct PlayerState {
   SOCKET socket;
@@ -199,7 +200,7 @@ void boardLoop();
 
 void log(const std::string& message) 
 {
-  std::lock_guard<std::mutex> lock(logMutex);
+  std::scoped_lock<std::mutex> lock(logMutex);
   std::cout << message << std::endl;
   logFile << message << std::endl;
 }
@@ -214,19 +215,19 @@ int generateUniqueId()
 
 void update_player_state(GameState& game_state, SOCKET socket, const PlayerState& state) 
 {
-  std::lock_guard<std::mutex> lock(game_state.stateMutex);
+  std::scoped_lock<std::mutex> lock(game_state.stateMutex);
   game_state.playerStates[socket] = state;
 }
 
 PlayerState get_player_state(GameState& game_state, SOCKET socket) 
 {
-  std::lock_guard<std::mutex> lock(game_state.stateMutex);
+  std::scoped_lock<std::mutex> lock(game_state.stateMutex);
   return game_state.playerStates[socket];
 }
 
 void remove_player(GameState& game_state, SOCKET socket) 
 {
-  std::lock_guard<std::mutex> lock(game_state.stateMutex);
+  std::scoped_lock<std::mutex> lock(game_state.stateMutex);
   game_state.playerStates.erase(socket);
 }
 
@@ -235,16 +236,21 @@ std::string serializePlayerStateToString(const PlayerState& player)
   std::string result;
   result += "{\"player\": {\"coins\":\"";
   result += std::to_string(player.coins);
-  result += "\",\"troops\":\"[";
+  result += "\",\"cities\":[";
   // Append the troops here
   for (auto& cities : player.cities) {
+    result += "{\"troops\": [";
     for (auto& troop : cities.troops) {
+      result += "{ \"id\": \"";
       result += std::to_string(troop.id);
-      result += ",";
+      result += "\", \"health\": \"";
+      result += std::to_string(troop.defense);
+      result += "\"},";
     }
+    result += "{}";
+    result += "]},";
   }
-  result += "FAKETROOP";
-  result += "]\"}}";
+  result += "{}]}}";
 
   return result;
 }
@@ -309,7 +315,7 @@ void initializeMaps()
     "purple", // color
     50, // cost
     5, // food
-    5 // coins
+    1 // coins
   };
   return;
 }
@@ -337,7 +343,7 @@ std::string serializeGameStateToString()
 // Function to send game state updates to all clients
 void sendGameStateDeltasToClients() 
 {
-  std::lock_guard<std::mutex> lock(gameState.stateMutex);
+  std::scoped_lock<std::mutex> lock(gameState.stateMutex);
   if (gameState.changedTiles.empty()) {
     return;
   }
@@ -354,7 +360,7 @@ void sendGameStateDeltasToClients()
 
 void update_game_state(GameState& game_state) 
 {
-  std::lock_guard<std::mutex> lock(game_state.stateMutex);
+  std::scoped_lock<std::mutex> lock(game_state.stateMutex);
 
   for (auto& playerPair : game_state.playerStates) {
     PlayerState& player = playerPair.second;
@@ -390,7 +396,7 @@ void temporarilyRemoveTroopFromGameState(Troop* troop)
 
 void clearCollidingEntities() 
 {
-  std::lock_guard<std::mutex> lock(gameState.stateMutex);
+  std::scoped_lock<std::mutex> lock(gameState.stateMutex);
 
   for (auto& playerPair : gameState.playerStates) {
     PlayerState& player = playerPair.second;
@@ -409,7 +415,7 @@ void clearCollidingEntities()
 int changeGridPoint(int x, int y, const std::string color) 
 {
   if (color != "#696969") 
-    std::lock_guard<std::mutex> lock(gameState.stateMutex);
+    std::scoped_lock<std::mutex> lock(gameState.stateMutex);
 
   if (x >= 0 && x < BOARD_WIDTH / TILE_SIZE && y >= 0 && y < BOARD_HEIGHT / TILE_SIZE) {
     gameState.board[y][x] = color;
@@ -463,7 +469,7 @@ int insertCharacter(std::vector<int> coords, int radius, const std::string color
 
 int updateEntityMidpoint(SOCKET playerSocket, const std::vector<int>& oldMidpoint, const std::vector<int>& newMidpoint) 
 {
-  std::lock_guard<std::mutex> lock(gameState.stateMutex);
+  std::scoped_lock<std::mutex> lock(gameState.stateMutex);
 
   auto it = gameState.playerStates.find(playerSocket);
   if (it == gameState.playerStates.end()) {
@@ -573,7 +579,7 @@ void handleTroopCollisions()
 {
   std::vector<PlayerState> playerStates;
   {
-    std::lock_guard<std::mutex> lock(gameState.stateMutex);
+    std::scoped_lock<std::mutex> lock(gameState.stateMutex);
     for (const auto& playerPair : gameState.playerStates) {
       playerStates.push_back(playerPair.second);
     }
@@ -708,7 +714,7 @@ void applyDamageToCollidingEntities(SOCKET playerSocket, CollidableEntity* entit
 // Collision logic and functions
 void checkForCollidingTroops() 
 {
-  std::lock_guard<std::mutex> lock(gameState.stateMutex);
+  std::scoped_lock<std::mutex> lock(gameState.stateMutex);
 
   for (auto& player: gameState.playerStates) {
     PlayerState& playerState = player.second;
@@ -789,7 +795,7 @@ bool isWithinRadius(const std::vector<int>& point, const std::vector<int>& cente
 
 int checkCollision(const std::vector<int>& circleOne, int ignoreId = -1) 
 {
-  std::lock_guard<std::mutex> lock(gameState.stateMutex);
+  std::scoped_lock<std::mutex> lock(gameState.stateMutex);
 
   log("Checking collision for circle with ignoreId: " + std::to_string(ignoreId));
 
@@ -881,7 +887,7 @@ bool moveCharacter(SOCKET playerSocket, CollidableEntity* entityToMove, const st
 
   // Add the changed tiles to the changedTiles vector
   {
-    std::lock_guard<std::mutex> lock(gameState.stateMutex);
+    std::scoped_lock<std::mutex> lock(gameState.stateMutex);
     gameState.changedTiles.push_back({ currentX, currentY, "#696969" });
     gameState.changedTiles.push_back({ newCoords[0], newCoords[1], color });
   }
@@ -1162,13 +1168,16 @@ void gameLogic(SOCKET clientSocket)
     log("Decoded message: " + decodedMessage);
 
     // Submit the task to the thread pool
+    /*threadPool.enqueue([clientSocket, decodedMessage] {
+      handlePlayerMessage(clientSocket, decodedMessage);
+      });*/
     threadPool.enqueue([clientSocket, decodedMessage] {
       handlePlayerMessage(clientSocket, decodedMessage);
       });
   }
   closesocket(clientSocket);
   {
-    std::lock_guard<std::mutex> lock(gameState.stateMutex);
+    std::scoped_lock<std::mutex> lock(gameState.stateMutex);
     clients.erase(clientSocket);
   }
   log("Client disconnected.");
@@ -1225,7 +1234,7 @@ void acceptPlayer(SOCKET serverSocket, ThreadPool& threadPool)
     }
 
     {
-      std::lock_guard<std::mutex> lock(gameState.stateMutex);
+      std::scoped_lock<std::mutex> lock(gameState.stateMutex);
       clients[clientSocket] = clientAddr; // This is where we are storing our clients
     }
 
@@ -1236,9 +1245,10 @@ void acceptPlayer(SOCKET serverSocket, ThreadPool& threadPool)
     if (bytesReceived > 0) {
       std::string request(buffer, bytesReceived);
       handleWebSocketHandshake(clientSocket, request);
-      threadPool.enqueue([clientSocket] {
+      /*threadPool.enqueue([clientSocket] {
         gameLogic(clientSocket);
-        });
+        });*/
+      std::thread(gameLogic, clientSocket).detach();
     }
     else {
       log("Failed to receive handshake request: " + std::to_string(WSAGetLastError()));
@@ -1252,21 +1262,25 @@ void updateCoinCounts()
   auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - gameState.lastUpdate);
 
   if (elapsed.count() >= 1) {
-    std::lock_guard<std::mutex> lock(gameState.stateMutex);
+    std::scoped_lock<std::mutex> lock(gameState.stateMutex);
 
+    bool buildingsToSend = false;
     for (auto& playerPair : gameState.playerStates) {
       PlayerState& player = playerPair.second;
       for (auto& city : player.cities) {
+          if (!city.buildings.empty()) {
+            buildingsToSend = true;
+          }
         for (auto& building : city.buildings) {
-          log("Adding " + std::to_string(building.coins) + " coins to city " + std::to_string(city.id));
+          //log("Adding " + std::to_string(building.coins) + " coins to city " + std::to_string(city.id));
           city.coins += building.coins;
           player.coins += building.coins;
         }
       }
       // Send the updated player state to the client
-      sendPlayerStateDeltaToClient(player);
+      if (buildingsToSend)
+        sendPlayerStateDeltaToClient(player);
     }
-
     gameState.lastUpdate = now; // Update the last update time
   }
 }
@@ -1280,7 +1294,7 @@ void boardLoop()
     bool hasEntitiesToProcess = false;
 
     {
-      std::lock_guard<std::mutex> lock(gameState.stateMutex);
+      std::scoped_lock<std::mutex> lock(gameState.stateMutex);
       for (auto& playerPair : gameState.playerStates) {
         PlayerState& player = playerPair.second;
         for (auto& city : player.cities) {
@@ -1308,7 +1322,8 @@ void boardLoop()
     if (hasEntitiesToProcess) {
       handleTroopCollisions();
     }
-    updateCoinCounts();
+    //std::thread(updateCoinCounts).detach();
+    threadPool.enqueue(updateCoinCounts);
     sendGameStateDeltasToClients();
     std::this_thread::sleep_for(std::chrono::milliseconds(16)); // Add a delay to avoid busy-waiting
   }
@@ -1317,15 +1332,16 @@ void boardLoop()
 int main() 
 {
   initializeMaps();
+  log(std::to_string(std::thread::hardware_concurrency()));
 
   // NETWORK CONFIG
-#ifdef _WIN32
-  WSADATA wsaData;
-  SOCKET serverSocket;
-  if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-    std::cerr << "WSAStartup failed: " << WSAGetLastError() << std::endl;
-    return 1;
-  }
+  #ifdef _WIN32
+    WSADATA wsaData;
+    SOCKET serverSocket;
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
+      std::cerr << "WSAStartup failed: " << WSAGetLastError() << std::endl;
+      return 1;
+    }
   #else
     SOCKET serverSocket;
   #endif

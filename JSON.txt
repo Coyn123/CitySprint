@@ -1,0 +1,21 @@
+{
+  "player": {
+    "coins": "5",
+    "cities": [
+      {
+        "troops": [
+          {
+            "id": "5",
+            "health": "100"
+          }
+        ],
+        "buildings": [
+          {
+            "id": "4",
+            "health": "100"
+          }
+        ]
+      }
+    ]
+  }
+}

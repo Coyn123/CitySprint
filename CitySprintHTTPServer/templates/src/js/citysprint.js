@@ -32,7 +32,7 @@ function setCharacterType(button) {
     selectedTroop = null; // Deselect any selected troop if not in select mode
   }
   console.log("Character type selected: ", selectedCharacterType);
-  updateList();
+  updateList(selectedCharacterType);
 }
 
 ws.onmessage = function (event) {
@@ -82,6 +82,7 @@ canvas.addEventListener("click", (e) => {
     changeGridPoint(col, row, "white", selectedCharacterType);
   }
   updateList();
+  selectedTroop = "select";
 });
 
 function selectTroop(x, y) {
@@ -150,9 +151,9 @@ function closePopup() {
 
 const list = document.getElementById('dynamic-list');
 //status functionality
-function updateList() {
+function updateList(character) {
   if (obj.player == null) return;
-  const items = [obj.player.coins, selectedCharacterType];
+  const items = [obj.player.coins, character];
       
   list.innerHTML = ''; // clear list
 
