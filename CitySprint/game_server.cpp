@@ -91,7 +91,6 @@ struct PlayerState {
 // Global Game State
 struct GameState {
   std::unordered_map<SOCKET, PlayerState> player_states;
-  std::mutex mtx;
   std::vector<std::vector<std::string>> board; // 2D board representing tile colors
   std::vector<Tile> changedTiles; // List of changed tiles
   std::mutex stateMutex;
@@ -216,19 +215,19 @@ int generateUniqueId()
 
 void update_player_state(GameState& game_state, SOCKET socket, const PlayerState& state) 
 {
-  std::lock_guard<std::mutex> lock(game_state.mtx);
+  std::lock_guard<std::mutex> lock(game_state.stateMutex);
   game_state.player_states[socket] = state;
 }
 
 PlayerState get_player_state(GameState& game_state, SOCKET socket) 
 {
-  std::lock_guard<std::mutex> lock(game_state.mtx);
+  std::lock_guard<std::mutex> lock(game_state.stateMutex);
   return game_state.player_states[socket];
 }
 
 void remove_player(GameState& game_state, SOCKET socket) 
 {
-  std::lock_guard<std::mutex> lock(game_state.mtx);
+  std::lock_guard<std::mutex> lock(game_state.stateMutex);
   game_state.player_states.erase(socket);
 }
 
