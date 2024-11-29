@@ -4,7 +4,7 @@ const tileSize = 2; // Update the tileSize to match server
 let gameMatrix = []; // Initialize the game matrix
 let selectedCharacterType = "coin";
 let selectedTroop = null;
-var jsonStuff = '{"player":{"coins":100,"troops":0}}';
+var jsonStuff = '{"player":{"coins":0,"troops":0}}';
 
 var obj = JSON.parse(jsonStuff);
 

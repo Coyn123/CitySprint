@@ -40,7 +40,7 @@
 // Setting up our constants, function prototypes, and structures below 
 
 // Constants
-const int BOARD_WIDTH = 800;
+const int BOARD_WIDTH = 1500;
 const int BOARD_HEIGHT = 600;
 const int TILE_SIZE = 2;
 
@@ -182,7 +182,6 @@ void clearCollidingEntities();
 int changeGridPoint(int x, int y, const std::string color);
 int insertCharacter(std::vector<int> coords, int radius, const std::string color, int ignoreId);
 int updateEntityMidpoint(SOCKET playerSocket, const std::vector<int>& oldMidpoint, const std::vector<int>& newMidpoint);
-void removeTroopFromGameState(GameState& gameState, PlayerState& playerState, int troopId);
 void applyDamageToCollidingEntities(SOCKET playerSocket, CollidableEntity* entity);
 void checkForCollidingTroops();
 int isColliding(std::vector<int> circleOne, std::vector<int> circleTwo);
@@ -288,7 +287,7 @@ void initializeMaps()
   troopMap["Barbarian"] = {
     generateUniqueId(), // id
     {0, 0}, // midpoint
-    3, // size
+    6, // size
     10, // defense
     10, // attack
     {}, // collidingEntities
@@ -303,7 +302,7 @@ void initializeMaps()
   buildingMap["coinFarm"] = {
     generateUniqueId(), // id
     {0, 0}, // midpoint
-    5, // size
+    10, // size
     30, // defense
     10, // attack
     {}, // collidingEntities
@@ -629,7 +628,7 @@ void applyDamageToCollidingEntities(SOCKET playerSocket, CollidableEntity* entit
       for (auto& troop : city.troops) {
         log("Testing against troop: " + std::to_string(troop.midpoint[0]) + ", " + std::to_string(troop.midpoint[1]) + " : " + std::to_string(entity->midpoint[0]) + ", " + std::to_string(entity->midpoint[1]));
         std::vector<int> circleOne, circleTwo;
-        int newRadius = (troop.size + entity->size) + 2;
+        int newRadius = (troop.size + entity->size) + 4;
         log(std::to_string(isWithinRadius(troop.midpoint, entity->midpoint, newRadius)));
         if (isWithinRadius(troop.midpoint, entity->midpoint, newRadius)) {
           log("Troops are officially fighting");
@@ -659,7 +658,7 @@ void applyDamageToCollidingEntities(SOCKET playerSocket, CollidableEntity* entit
       }
       for (auto& building : city.buildings) {
         std::vector<int> circleOne, circleTwo;
-        int newRadius = (building.size + entity->size) + 2;
+        int newRadius = (building.size + entity->size) + 4;
         log(std::to_string(isWithinRadius(building.midpoint, entity->midpoint, newRadius)));
         if (isWithinRadius(building.midpoint, entity->midpoint, newRadius)) {
           log("building is officially fighting");
@@ -1009,11 +1008,11 @@ void handlePlayerMessage(SOCKET clientSocket, const std::string& message)
       return;
     }
 
-    if (insertCharacter(coords, 15, "yellow")) {
+    if (insertCharacter(coords, 25, "yellow")) {
       City newCity;
       newCity.id = generateUniqueId(); // Generate a unique ID for the city
       newCity.midpoint = { coords[0], coords[1] };
-      newCity.size = 15;
+      newCity.size = 25;
       newCity.defense = 100;
       newCity.attack = 10;
       newCity.color = "yellow";
@@ -1150,11 +1149,13 @@ void gameLogic(SOCKET clientSocket)
   // Initialize player state
   PlayerState player_state;
   player_state.socket = clientSocket;
-  player_state.coins = 100; // Example initial state
+  player_state.coins = 0; // Example initial state
   player_state.phase = 0;
 
   // Store the initial state in the GameState structure
   update_player_state(gameState, clientSocket, player_state);
+
+  sendPlayerStateDeltaToClient(player_state);
 
   while ((bytesReceived = recv(clientSocket, buffer, sizeof(buffer), 0)) > 0) {
     std::string message(buffer, bytesReceived);
