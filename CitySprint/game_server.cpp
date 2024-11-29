@@ -304,13 +304,13 @@ void initializeMaps()
     generateUniqueId(), // id
     {0, 0}, // midpoint
     5, // size
-    10, // defense
-    5, // attack
+    30, // defense
+    10, // attack
     {}, // collidingEntities
     "purple", // color
     50, // cost
     5, // food
-    0 // coins
+    5 // coins
   };
   return;
 }
@@ -498,33 +498,78 @@ int updateEntityMidpoint(SOCKET playerSocket, const std::vector<int>& oldMidpoin
 }
 
 
-void removeTroopFromGameState(GameState& gameState, PlayerState& playerState, int troopId) 
+void removeEntityFromGameState(GameState& gameState, PlayerState& playerState, int entityId)
 {
-  log("Attempting to remove troop with ID: " + std::to_string(troopId));
+  log("Attempting to remove entity with ID: " + std::to_string(entityId));
 
   for (auto& city : playerState.cities) {
-    auto troopIt = std::find_if(city.troops.begin(), city.troops.end(), [troopId](const Troop& troop) {
-      return troop.id == troopId;
+    if (city.id == entityId) {
+      log("City found. Removing city from the game state.");
+
+      // Clear the board of the city using its midpoint
+      std::vector<int> midpoint = city.midpoint;
+      insertCharacter(midpoint, city.size, "#696969", entityId);
+
+      // Clear the city's troops and buildings
+      for (auto& troop : city.troops) {
+        insertCharacter(troop.midpoint, troop.size, "#696969", troop.id);
+      }
+      for (auto& building : city.buildings) {
+        insertCharacter(building.midpoint, building.size, "#696969", building.id);
+      }
+      city.troops.clear();
+      city.buildings.clear();
+
+      // Clear the city's midpoint to mark it as removed
+      city.midpoint.clear();
+
+      log("City " + std::to_string(entityId) + " removed from game state.");
+      update_game_state(gameState); // Update game state after removal
+      return;
+    }
+
+    auto troopIt = std::find_if(city.troops.begin(), city.troops.end(), [entityId](const Troop& troop) {
+      return troop.id == entityId;
       });
 
     if (troopIt != city.troops.end()) {
-      log("Troop found. Removing character from the board");
+      log("Troop found. Removing troop from the game state.");
 
-      // Clear the board of the character using their midpoint
+      // Clear the board of the troop using its midpoint
       std::vector<int> midpoint = troopIt->midpoint;
-      insertCharacter(midpoint, troopIt->size, "#696969", troopId);
+      insertCharacter(midpoint, troopIt->size, "#696969", entityId);
 
       // Remove the troop from the city's troop list
       city.troops.erase(troopIt);
 
-      log("Troop " + std::to_string(troopId) + " removed from game state.");
+      log("Troop " + std::to_string(entityId) + " removed from game state.");
+      update_game_state(gameState); // Update game state after removal
+      return;
+    }
+
+    auto buildingIt = std::find_if(city.buildings.begin(), city.buildings.end(), [entityId](const Building& building) {
+      return building.id == entityId;
+      });
+
+    if (buildingIt != city.buildings.end()) {
+      log("Building found. Removing building from the game state.");
+
+      // Clear the board of the building using its midpoint
+      std::vector<int> midpoint = buildingIt->midpoint;
+      insertCharacter(midpoint, buildingIt->size, "#696969", entityId);
+
+      // Remove the building from the city's building list
+      city.buildings.erase(buildingIt);
+
+      log("Building " + std::to_string(entityId) + " removed from game state.");
       update_game_state(gameState); // Update game state after removal
       return;
     }
   }
 
-  log("Troop with ID " + std::to_string(troopId) + " not found in any city.");
+  log("Entity with ID " + std::to_string(entityId) + " not found in any city.");
 }
+
 
 void handleTroopCollisions() 
 {
@@ -539,7 +584,7 @@ void handleTroopCollisions()
   }
 }
 
-void applyDamageToCollidingEntities(SOCKET playerSocket, CollidableEntity* entity) 
+void applyDamageToCollidingEntities(SOCKET playerSocket, CollidableEntity* entity)
 {
   std::lock_guard<std::mutex> lock(gameState.stateMutex);
   PlayerState& ourPlayer = gameState.playerStates[playerSocket];
@@ -558,7 +603,6 @@ void applyDamageToCollidingEntities(SOCKET playerSocket, CollidableEntity* entit
     for (auto& city : player.cities) {
       log("Testing against city: " + std::to_string(city.id));
       if (city.id != entity->id && city.midpoint.size() >= 2 && entity->midpoint.size() >= 2 && isWithinRadius(city.midpoint, entity->midpoint, entity->size + city.size)) {
-        log("Testing against city: " + std::to_string(city.id));
         int cityDamage = entity->attack;
         int movingEntityDamage = city.attack;
         city.defense -= cityDamage;
@@ -567,6 +611,11 @@ void applyDamageToCollidingEntities(SOCKET playerSocket, CollidableEntity* entit
         city.collidingEntities.push_back(entity->id);
         log("Entity " + std::to_string(entity->id) + " (Client: " + std::to_string(playerSocket) + ") dealt " + std::to_string(cityDamage) + " damage to City " + std::to_string(city.id) + " (Client: " + std::to_string(playerPair.first) + "). City defense: " + std::to_string(city.defense));
         log("City " + std::to_string(city.id) + " (Client: " + std::to_string(playerPair.first) + ") dealt " + std::to_string(movingEntityDamage) + " damage to Entity " + std::to_string(entity->id) + " (Client: " + std::to_string(playerSocket) + "). Entity defense: " + std::to_string(entity->defense));
+
+        if (city.defense <= 0) {
+          log("City " + std::to_string(city.id) + " (Client: " + std::to_string(playerPair.first) + ") has been destroyed.");
+          removeEntityFromGameState(gameState, player, city.id);
+        }
       }
       for (auto& troop : city.troops) {
         log("Testing against troop: " + std::to_string(troop.midpoint[0]) + ", " + std::to_string(troop.midpoint[1]) + " : " + std::to_string(entity->midpoint[0]) + ", " + std::to_string(entity->midpoint[1]));
@@ -593,22 +642,40 @@ void applyDamageToCollidingEntities(SOCKET playerSocket, CollidableEntity* entit
 
           if (entity->defense <= 0) {
             log("Our troop is dead");
-            removeTroopFromGameState(gameState, ourPlayer, entity->id);
+            removeEntityFromGameState(gameState, ourPlayer, entity->id);
             update_game_state(gameState); // Update game state after removal
             return;
           }
         }
       }
       for (auto& building : city.buildings) {
-        if (building.id != entity->id && building.midpoint.size() >= 2 && entity->midpoint.size() >= 2 && isWithinRadius(building.midpoint, entity->midpoint, entity->size + building.size)) {
+        std::vector<int> circleOne, circleTwo;
+        int newRadius = (building.size + entity->size) + 2;
+        log(std::to_string(isWithinRadius(building.midpoint, entity->midpoint, newRadius)));
+        if (isWithinRadius(building.midpoint, entity->midpoint, newRadius)) {
+          log("building is officially fighting");
           int buildingDamage = entity->attack;
           int movingEntityDamage = building.attack;
           building.defense -= buildingDamage;
           entity->defense -= movingEntityDamage;
           entity->collidingEntities.push_back(building.id);
           building.collidingEntities.push_back(entity->id);
-          log("Entity " + std::to_string(entity->id) + " (Client: " + std::to_string(playerSocket) + ") dealt " + std::to_string(buildingDamage) + " damage to Building " + std::to_string(building.id) + " (Client: " + std::to_string(playerPair.first) + "). Building defense: " + std::to_string(building.defense));
-          log("Building " + std::to_string(building.id) + " (Client: " + std::to_string(playerPair.first) + ") dealt " + std::to_string(movingEntityDamage) + " damage to Entity " + std::to_string(entity->id) + " (Client: " + std::to_string(playerSocket) + "). Entity defense: " + std::to_string(entity->defense));
+          log("Entity " + std::to_string(entity->id) + " (Client: " + std::to_string(playerSocket) + ") dealt " + std::to_string(movingEntityDamage) + " damage to Troop " + std::to_string(building.id) + " (Client: " + std::to_string(playerPair.first) + "). Building defense: " + std::to_string(building.defense));
+          log("Building " + std::to_string(building.id) + " (Client: " + std::to_string(playerPair.first) + ") dealt " + std::to_string(buildingDamage) + " damage to Entity " + std::to_string(entity->id) + " (Client: " + std::to_string(playerSocket) + "). Entity defense: " + std::to_string(entity->defense));
+
+          // Remove troop if its defense is zero or less
+          if (building.defense <= 0) {
+            log("Building " + std::to_string(building.id) + " (Client: " + std::to_string(playerPair.first) + ") has been destroyed.");
+            insertCharacter(building.midpoint, building.size, "#696969", building.id); // Overwrite the spot on the board
+            city.buildings.erase(std::remove_if(city.buildings.begin(), city.buildings.end(), [&](const Building& t) { return t.id == building.id; }), city.buildings.end());
+          }
+
+          if (entity->defense <= 0) {
+            log("Our troop is dead");
+            removeEntityFromGameState(gameState, ourPlayer, entity->id);
+            update_game_state(gameState); // Update game state after removal
+            return;
+          }
         }
       }
     }
@@ -617,7 +684,7 @@ void applyDamageToCollidingEntities(SOCKET playerSocket, CollidableEntity* entit
   // Remove moving entity if its defense is zero or less
   if (entity->defense <= 0) {
     log("Entity " + std::to_string(entity->id) + " (Client: " + std::to_string(playerSocket) + ") has been destroyed.");
-    removeTroopFromGameState(gameState, ourPlayer, entity->id);
+    removeEntityFromGameState(gameState, ourPlayer, entity->id);
     update_game_state(gameState);
     insertCharacter(entity->midpoint, entity->size, "#696969", entity->id); // Overwrite the spot on the board
     for (auto& city : ourPlayer.cities) {
@@ -626,6 +693,8 @@ void applyDamageToCollidingEntities(SOCKET playerSocket, CollidableEntity* entit
   }
   update_game_state(gameState); // Update game state after applying damage
 }
+
+
 
 
 
