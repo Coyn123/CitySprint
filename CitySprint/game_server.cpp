@@ -222,7 +222,8 @@ Semaphore userSemaphore(2);
 
 int clientMessageCount = (std::thread::hardware_concurrency() / 2);
 int clientSubtaskCount = (std::thread::hardware_concurrency() / 4);
-#ifdef std::thread::hardware_concurrency <= 2
+int threads = static_cast<int>(std::thread::hardware_concurrency());
+#ifdef threads <= 2
   clientMessageCount = 1;
   clientSubtaskCount = 1;
 #endif
