@@ -222,12 +222,12 @@ Semaphore userSemaphore(2);
 
 int clientMessageCount = (std::thread::hardware_concurrency() / 2);
 int clientSubtaskCount = (std::thread::hardware_concurrency() / 4);
-#ifdef std::thread::hardware_concurrency() <= 4
-  clientMessageCount = 2;
-  clientSubtaskCount = 2; 
+#ifdef std::thread::hardware_concurrency <= 2
+  clientMessageCount = 1;
+  clientSubtaskCount = 1;
 #endif
-ThreadPool clientMessageThreadPool(std::thread::hardware_concurrency() / 2);
-ThreadPool subtaskThreadPool(std::thread::hardware_concurrency() / 4);
+ThreadPool clientMessageThreadPool(clientMessageCount);
+ThreadPool subtaskThreadPool(clientSubtaskCount);
 
 void log(const std::string& message) 
 {
