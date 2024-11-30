@@ -220,15 +220,10 @@ std::mutex clientsMutex;
 std::mutex logMutex;
 Semaphore userSemaphore(2);
 
-int availableThreads = static_cast<int>(std::thread::hardware_concurrency());
+size_t clientMessageCount = std::thread::hardware_concurrency() / 2;
+size_t clientSubtaskCount = clientMessageCount / 2;
+size_t leftoverThreadCount = clientMessageCount / 2;
 
-#if availableThreads <= 3
-  const int clientMessageCount = 1;
-  const int clientSubtaskCount = 1;
-#else
-  const int clientMessageCount = std::thread::hardware_concurrency() / 2;
-  const int clientSubtaskCount = std::thread::hardware_concurrency() / 4;
-#endif
 ThreadPool clientMessageThreadPool(clientMessageCount);
 ThreadPool subtaskThreadPool(clientSubtaskCount);
 
@@ -1378,7 +1373,7 @@ int main()
 {
   initializeMaps();
   int threadsUsed = clientMessageCount + clientSubtaskCount;
-  log("Utilizing " + std::to_string(threadsUsed) + " of the CPUs " + std::to_string(std::thread::hardware_concurrency()) + " Available Concurrent Threads.");
+  log("Allocating " + std::to_string(threadsUsed) + " of the CPUs " + std::to_string(std::thread::hardware_concurrency()) + " Available Concurrent Threads.");
 
   // NETWORK CONFIG
 #ifdef _WIN32
