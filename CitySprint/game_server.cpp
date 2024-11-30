@@ -1168,9 +1168,6 @@ void gameLogic(SOCKET clientSocket)
     log("Decoded message: " + decodedMessage);
 
     // Submit the task to the thread pool
-    /*threadPool.enqueue([clientSocket, decodedMessage] {
-      handlePlayerMessage(clientSocket, decodedMessage);
-      });*/
     threadPool.enqueue([clientSocket, decodedMessage] {
       handlePlayerMessage(clientSocket, decodedMessage);
       });
@@ -1322,8 +1319,8 @@ void boardLoop()
     if (hasEntitiesToProcess) {
       handleTroopCollisions();
     }
-    //std::thread(updateCoinCounts).detach();
-    threadPool.enqueue(updateCoinCounts);
+    std::thread(updateCoinCounts).detach();
+    //threadPool.enqueue(updateCoinCounts);
     sendGameStateDeltasToClients();
     std::this_thread::sleep_for(std::chrono::milliseconds(16)); // Add a delay to avoid busy-waiting
   }
@@ -1332,7 +1329,7 @@ void boardLoop()
 int main() 
 {
   initializeMaps();
-  log(std::to_string(std::thread::hardware_concurrency()));
+  log("This CPU supports: " + std::to_string(std::thread::hardware_concurrency()) + " Concurrent Threads.");
 
   // NETWORK CONFIG
   #ifdef _WIN32
