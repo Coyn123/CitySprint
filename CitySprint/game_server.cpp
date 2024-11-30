@@ -24,7 +24,6 @@
 #include <string>
 #include <thread>
 #include <mutex>
-#include <semaphore>
 #include <sstream>
 #include <iomanip>
 #include <fstream>
@@ -117,6 +116,7 @@ private:
 
 ThreadPool::ThreadPool(size_t numThreads) : stop(false) 
 {
+  std::cout << "Initializing Thread Pool with: " << std::to_string(numThreads) << " Workers." << std::endl;
   for (size_t i = 0; i < numThreads; ++i) {
     workers.emplace_back([this] {
       for (;;) {
@@ -177,22 +177,6 @@ private:
     int count;
 };
 
-// Declaring our global variables for the game
-
-GameState gameState;
-std::map<SOCKET, sockaddr_in> clients;
-std::ofstream logFile("./log/log.txt", std::ios::out | std::ios::app);
-
-std::map<std::string, Troop> troopMap;
-std::map<std::string, Building> buildingMap;
-
-std::mutex clientsMutex;
-std::mutex logMutex;
-Semaphore userSemaphore(2);
-
-ThreadPool threadPool(std::thread::hardware_concurrency());
-ThreadPool userPool(4);
-
 void log(const std::string& message);
 int generateUniqueId();
 void update_player_state(GameState& game_state, SOCKET socket, const PlayerState& state);
@@ -222,6 +206,28 @@ void gameLogic(SOCKET clientSocket);
 void handleWebSocketHandshake(SOCKET clientSocket, const std::string& request);
 void acceptPlayer(SOCKET serverSocket);
 void boardLoop();
+
+// Declaring our global variables for the game
+
+GameState gameState;
+std::map<SOCKET, sockaddr_in> clients;
+std::ofstream logFile("./log/log.txt", std::ios::out | std::ios::app);
+
+std::map<std::string, Troop> troopMap;
+std::map<std::string, Building> buildingMap;
+
+std::mutex clientsMutex;
+std::mutex logMutex;
+Semaphore userSemaphore(2);
+
+int clientMessageCount = (std::thread::hardware_concurrency() / 2);
+int clientSubtaskCount = (std::thread::hardware_concurrency() / 4);
+#ifdef std::thread::hardware_concurrency() <= 4
+  clientMessageCount = 2;
+  clientSubtaskCount = 2; 
+#endif
+ThreadPool clientMessageThreadPool(std::thread::hardware_concurrency() / 2);
+ThreadPool subtaskThreadPool(std::thread::hardware_concurrency() / 4);
 
 void log(const std::string& message) 
 {
@@ -316,7 +322,7 @@ void initializeMaps()
   // SETUP OUR MAPS
   // Troops
   troopMap["Barbarian"] = {
-    generateUniqueId(), // id
+    0, // id
     {0, 0}, // midpoint
     6, // size
     10, // defense
@@ -331,7 +337,7 @@ void initializeMaps()
 
   // Buildings
   buildingMap["coinFarm"] = {
-    generateUniqueId(), // id
+    0, // id
     {0, 0}, // midpoint
     10, // size
     30, // defense
@@ -1200,7 +1206,7 @@ void gameLogic(SOCKET clientSocket)
     log("Decoded message: " + decodedMessage);
 
     // Submit the task to the thread pool
-    threadPool.enqueue([clientSocket, decodedMessage] {
+    clientMessageThreadPool.enqueue([clientSocket, decodedMessage] {
       handlePlayerMessage(clientSocket, decodedMessage);
       });
   }
@@ -1358,8 +1364,8 @@ void boardLoop()
     if (hasEntitiesToProcess) {
       handleTroopCollisions();
     }
-    std::thread(updateCoinCounts).detach();
-    //threadPool.enqueue(updateCoinCounts);
+    //std::thread(updateCoinCounts).detach();
+    subtaskThreadPool.enqueue(updateCoinCounts);
     sendGameStateDeltasToClients();
     std::this_thread::sleep_for(std::chrono::milliseconds(16)); // Add a delay to avoid busy-waiting
   }
@@ -1368,7 +1374,8 @@ void boardLoop()
 int main()
 {
   initializeMaps();
-  log("This CPU supports: " + std::to_string(std::thread::hardware_concurrency()) + " Concurrent Threads.");
+  int threadsUsed = clientMessageCount + clientSubtaskCount;
+  log("Utilizing " + std::to_string(threadsUsed) + " of the CPUs " + std::to_string(std::thread::hardware_concurrency()) + " Available Concurrent Threads.");
 
   // NETWORK CONFIG
 #ifdef _WIN32
