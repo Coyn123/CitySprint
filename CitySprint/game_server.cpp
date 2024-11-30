@@ -24,6 +24,7 @@
 #include <string>
 #include <thread>
 #include <mutex>
+#include <semaphore>
 #include <sstream>
 #include <iomanip>
 #include <fstream>
@@ -154,6 +155,28 @@ void ThreadPool::enqueue(std::function<void()> task)
   condition.notify_one();
 }
 
+class Semaphore {
+public:
+    Semaphore(int count = 0) : count(count) {}
+
+    void acquire() {
+        std::unique_lock<std::mutex> lock(semaphoreMutex);
+        condition.wait(lock, [this] { return count > 0; });
+        --count;
+    }
+
+    void release() {
+        std::unique_lock<std::mutex> lock(semaphoreMutex);
+        ++count;
+        condition.notify_one();
+    }
+
+private:
+    std::mutex semaphoreMutex;
+    std::condition_variable condition;
+    int count;
+};
+
 // Declaring our global variables for the game
 
 GameState gameState;
@@ -165,8 +188,10 @@ std::map<std::string, Building> buildingMap;
 
 std::mutex clientsMutex;
 std::mutex logMutex;
+Semaphore userSemaphore(2);
 
 ThreadPool threadPool(std::thread::hardware_concurrency());
+ThreadPool userPool(4);
 
 void log(const std::string& message);
 int generateUniqueId();
@@ -1225,7 +1250,7 @@ void handleWebSocketHandshake(SOCKET clientSocket, const std::string& request)
 }
 
 // Accept new client connections
-void acceptPlayer(SOCKET serverSocket, ThreadPool& threadPool) 
+void acceptPlayer(SOCKET serverSocket)
 {
   sockaddr_in clientAddr;
   socklen_t clientAddrSize = sizeof(clientAddr);
@@ -1236,6 +1261,9 @@ void acceptPlayer(SOCKET serverSocket, ThreadPool& threadPool)
       log("Accept failed: " + std::to_string(WSAGetLastError()));
       continue;
     }
+
+    // Acquire a slot in the semaphore
+    userSemaphore.acquire();
 
     {
       std::scoped_lock<std::mutex> lock(gameState.stateMutex);
@@ -1249,16 +1277,20 @@ void acceptPlayer(SOCKET serverSocket, ThreadPool& threadPool)
     if (bytesReceived > 0) {
       std::string request(buffer, bytesReceived);
       handleWebSocketHandshake(clientSocket, request);
-      /*threadPool.enqueue([clientSocket] {
+      std::thread([clientSocket] {
         gameLogic(clientSocket);
-        });*/
-      std::thread(gameLogic, clientSocket).detach();
+        // Release the semaphore slot when the game logic is done
+        userSemaphore.release();
+        }).detach();
     }
     else {
       log("Failed to receive handshake request: " + std::to_string(WSAGetLastError()));
+      // Release the semaphore slot if handshake fails
+      userSemaphore.release();
     }
   }
 }
+
 
 void updateCoinCounts()
 {
@@ -1333,22 +1365,22 @@ void boardLoop()
   }
 }
 
-int main() 
+int main()
 {
   initializeMaps();
   log("This CPU supports: " + std::to_string(std::thread::hardware_concurrency()) + " Concurrent Threads.");
 
   // NETWORK CONFIG
-  #ifdef _WIN32
-    WSADATA wsaData;
-    SOCKET serverSocket;
-    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-      std::cerr << "WSAStartup failed: " << WSAGetLastError() << std::endl;
-      return 1;
-    }
-  #else
-    SOCKET serverSocket;
-  #endif
+#ifdef _WIN32
+  WSADATA wsaData;
+  SOCKET serverSocket;
+  if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
+    std::cerr << "WSAStartup failed: " << WSAGetLastError() << std::endl;
+    return 1;
+  }
+#else
+  SOCKET serverSocket;
+#endif
 
   serverSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
   if (serverSocket == INVALID_SOCKET) {
@@ -1364,18 +1396,18 @@ int main()
   if (bind(serverSocket, (struct sockaddr*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR) {
     std::cerr << "Bind failed: " << WSAGetLastError() << std::endl;
     closesocket(serverSocket);
-    #ifdef _WIN32
-        WSACleanup();
-    #endif
+#ifdef _WIN32
+    WSACleanup();
+#endif
     return 1;
   }
 
   if (listen(serverSocket, SOMAXCONN) == SOCKET_ERROR) {
     std::cerr << "Listen failed: " << WSAGetLastError() << std::endl;
     closesocket(serverSocket);
-    #ifdef _WIN32
-        WSACleanup();
-    #endif
+#ifdef _WIN32
+    WSACleanup();
+#endif
     return 1;
   }
 
@@ -1383,16 +1415,17 @@ int main()
   initializeGameState();
 
   std::thread acceptThread([serverSocket]() {
-    acceptPlayer(serverSocket, std::ref(threadPool));
+    acceptPlayer(serverSocket);
     });
   boardLoop(); // Run the board loop in the main thread
 
   acceptThread.join();
 
   closesocket(serverSocket);
-  #ifdef _WIN32
-    WSACleanup();
-  #endif
+#ifdef _WIN32
+  WSACleanup();
+#endif
   logFile.close();
   return 0;
 }
+
