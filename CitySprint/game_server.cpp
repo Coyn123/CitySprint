@@ -226,6 +226,7 @@ size_t leftoverThreadCount = clientMessageCount / 2;
 
 ThreadPool clientMessageThreadPool(clientMessageCount);
 ThreadPool subtaskThreadPool(clientSubtaskCount);
+ThreadPool surplusThreadsForClients(leftoverThreadCount/2);
 
 void log(const std::string& message) 
 {
