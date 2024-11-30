@@ -614,8 +614,10 @@ void applyDamageToCollidingEntities(SOCKET playerSocket, CollidableEntity* entit
       continue;
     }
     for (auto& city : player.cities) {
-      log("Testing against city: " + std::to_string(city.id));
-      if (city.id != entity->id && city.midpoint.size() >= 2 && entity->midpoint.size() >= 2 && isWithinRadius(city.midpoint, entity->midpoint, entity->size + city.size)) {
+      log("Testing against city: " + std::to_string(city.id) + " with size: " + std::to_string(city.size));
+      log("Entity size: " + std::to_string(entity->size));
+      int newRadius = entity->size + city.size + 4;
+      if (isWithinRadius(city.midpoint, entity->midpoint, newRadius)) {
         int cityDamage = entity->attack;
         int movingEntityDamage = city.attack;
         city.defense -= cityDamage;
@@ -628,6 +630,12 @@ void applyDamageToCollidingEntities(SOCKET playerSocket, CollidableEntity* entit
         if (city.defense <= 0) {
           log("City " + std::to_string(city.id) + " (Client: " + std::to_string(playerPair.first) + ") has been destroyed.");
           removeEntityFromGameState(gameState, player, city.id);
+        }
+
+        if (entity->defense <= 0) {
+          log("Entity " + std::to_string(entity->id) + " (Client: " + std::to_string(playerSocket) + ") has been destroyed.");
+          removeEntityFromGameState(gameState, *ourPlayer, entity->id);
+          return;
         }
       }
       for (auto& troop : city.troops) {
@@ -777,7 +785,6 @@ bool isWithinRadius(const std::vector<int>& point, const std::vector<int>& cente
     log("Invalid point or center size. Point size: " + std::to_string(point.size()) + ", Center size: " + std::to_string(center.size()));
     return false;
   }
-
   int dx = point[0] - center[0];
   int dy = point[1] - center[1];
   int distanceSquared = dx * dx + dy * dy;
@@ -837,7 +844,7 @@ int checkCollision(const std::vector<int>& circleOne, int ignoreId = -1)
     }
     for (const auto& city : player.cities) {
       if (!city.midpoint.empty()) {
-        std::vector<int> circleTwo = { city.midpoint[0], city.midpoint[1], 15 };
+        std::vector<int> circleTwo = { city.midpoint[0], city.midpoint[1], city.size };
         if (isColliding(circleOne, circleTwo)) {
           log("Collision detected between entity " + std::to_string(ignoreId) + " and city " + std::to_string(city.id));
           return 1;
@@ -1013,11 +1020,11 @@ void handlePlayerMessage(SOCKET clientSocket, const std::string& message)
       return;
     }
 
-    if (insertCharacter(coords, 25, "yellow")) {
+    if (insertCharacter(coords, 20, "yellow")) {
       City newCity;
       newCity.id = generateUniqueId(); // Generate a unique ID for the city
       newCity.midpoint = { coords[0], coords[1] };
-      newCity.size = 25;
+      newCity.size = 20;
       newCity.defense = 100;
       newCity.attack = 10;
       newCity.color = "yellow";
@@ -1047,7 +1054,7 @@ void handlePlayerMessage(SOCKET clientSocket, const std::string& message)
     return;
   }
 
-  // Check if the coordinates are within the radius of a city plus an additional 15 tiles
+  // Check if the coordinates are within the radius of a city plus an additional 100 tiles
   bool withinCityRadius = false;
   for (const auto& city : player.cities) {
     if (isWithinRadius(coords, city.midpoint, city.size + 100)) {
@@ -1075,7 +1082,7 @@ void handlePlayerMessage(SOCKET clientSocket, const std::string& message)
         nearestCity = &city;
       }
     }
-    if (nearestCity && isWithinRadius(coords, nearestCity->midpoint, 15)) {
+    if (nearestCity && isWithinRadius(coords, nearestCity->midpoint, 20)) {
       player.coins++;
       nearestCity->coins++;
       log(std::to_string(player.coins) + " coins collected. City now has " + std::to_string(nearestCity->coins) + " coins.");
