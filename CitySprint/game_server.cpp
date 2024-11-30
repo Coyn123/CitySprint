@@ -220,12 +220,14 @@ std::mutex clientsMutex;
 std::mutex logMutex;
 Semaphore userSemaphore(2);
 
-int clientMessageCount = (std::thread::hardware_concurrency() / 2);
-int clientSubtaskCount = (std::thread::hardware_concurrency() / 4);
-int threads = static_cast<int>(std::thread::hardware_concurrency());
-#ifdef threads <= 2
-  clientMessageCount = 1;
-  clientSubtaskCount = 1;
+int availableThreads = static_cast<int>(std::thread::hardware_concurrency());
+
+#if availableThreads <= 3
+  const int clientMessageCount = 1;
+  const int clientSubtaskCount = 1;
+#else
+  const int clientMessageCount = std::thread::hardware_concurrency() / 2;
+  const int clientSubtaskCount = std::thread::hardware_concurrency() / 4;
 #endif
 ThreadPool clientMessageThreadPool(clientMessageCount);
 ThreadPool subtaskThreadPool(clientSubtaskCount);
