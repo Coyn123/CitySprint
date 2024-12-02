@@ -19,7 +19,7 @@
 ---
 
 ## Introduction
-Best coding practices are a set of informal rules that the software development community has learned over time, which can help improve the quality of software. These practices ensure that code is **robust**, **maintainable**, and **efficient**.
+Best coding practices are a set of informal rules that the software development community has learned over time, which can help improve the quality of software. These practices ensure that code is **r[...]
 
 ---
 
@@ -31,8 +31,8 @@ Best coding practices are a set of informal rules that the software development 
 **Implementation:**
 - **Meaningful Variable Names:** Use descriptive names for variables, functions, and structures.
   - **Example:** Instead of `x`, use `centerX` to indicate the variable's purpose.
-- **Consistent Indentation:** Follow a consistent indentation style to enhance the structure and readability of the code. Use 2 spaces per indentation level as per Google C++ coding standards.
-  - **Example:**
+- **Consistent Indentation:** Follow a consistent indentation style to enhance the structure and readability of the code. Use K&R style for everything except functions, which should use Allman style.
+  - **Example for K&R style:**
     ```cpp
     int main() {
       int userAge = 25;
@@ -44,6 +44,19 @@ Best coding practices are a set of informal rules that the software development 
       return 0;
     }
     ```
+  - **Example for Allman style:**
+    ```cpp
+    int main()
+    {
+        int userAge = 25;
+        if (userAge > 18) {
+            printf("Adult\n");
+        } else {
+            printf("Minor\n");
+        }
+        return 0;
+    }
+    ```
 - **Commenting:** Add comments to explain complex logic and important sections of the code.
   - **Example:** `// Initialize the game state`
 
@@ -52,7 +65,7 @@ Best coding practices are a set of informal rules that the software development 
 
 **Implementation:**
 - **Coding Standards:** Follow established coding standards and guidelines for C++.
-  - **Example:** Adhering to the Google C++ Style Guide.
+  - **Example:** Adhering to the Google C++ Style Guide, with the modification of using Allman style for functions.
 - **Linting Tools:** Use linting tools to enforce coding standards.
   - **Example:** Using `cpplint` to ensure code quality.
 - **Consistent Naming Conventions:** Use consistent naming conventions for variables, functions, and structures.
@@ -73,8 +86,9 @@ Best coding practices are a set of informal rules that the software development 
     // - b: The second number.
     // Returns:
     // - The sum of the two numbers.
-    int add(int a, int b) {
-      return a + b;
+    int add(int a, int b)
+    {
+        return a + b;
     }
 
     // Represents a user with an age and name.
@@ -87,7 +101,7 @@ Best coding practices are a set of informal rules that the software development 
   - **Example:** Creating a README.md file with installation instructions and usage examples.
 
 ### Testing
-**Description:** **Testing** ensures that the code works as expected and helps identify bugs before the code is deployed. It includes various types of tests such as unit tests, integration tests, and automated tests.
+**Description:** **Testing** ensures that the code works as expected and helps identify bugs before the code is deployed. It includes various types of tests such as unit tests, integration tests, and [...]
 
 **Implementation:**
 - **Unit Testing:** Test individual units or components of the code to ensure they work correctly.
@@ -144,4 +158,4 @@ Best coding practices are a set of informal rules that the software development 
 ---
 
 ## Conclusion
-Best coding practices are essential for developing high-quality, maintainable, and efficient software. By following these practices, developers can ensure their code is robust, secure, and easy to understand.
+Best coding practices are essential for developing high-quality, maintainable, and efficient software. By following these practices, developers can ensure their code is robust, secure, and easy to und[...]
