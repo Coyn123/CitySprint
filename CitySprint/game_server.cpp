@@ -35,7 +35,8 @@
 #include <functional>
 #include <condition_variable>
 
-#include "misc_lib.h"
+#include "utilities.h"
+#include "logger.h"
 
 // Setting up our constants, function prototypes, and structures below 
 
@@ -177,8 +178,6 @@ private:
     int count;
 };
 
-void log(const std::string& message);
-int generateUniqueId();
 void update_player_state(GameState& game_state, SOCKET socket, const PlayerState& state);
 PlayerState get_player_state(GameState& game_state, SOCKET socket);
 void remove_player(GameState& game_state, SOCKET socket);
@@ -211,13 +210,11 @@ void boardLoop();
 
 GameState gameState;
 std::map<SOCKET, sockaddr_in> clients;
-std::ofstream logFile("./log/log.txt", std::ios::out | std::ios::app);
 
 std::map<std::string, Troop> troopMap;
 std::map<std::string, Building> buildingMap;
 
 std::mutex clientsMutex;
-std::mutex logMutex;
 Semaphore userSemaphore(2);
 
 size_t clientMessageCount = std::thread::hardware_concurrency() / 2;
@@ -227,21 +224,6 @@ size_t leftoverThreadCount = clientMessageCount / 2;
 ThreadPool clientMessageThreadPool(clientMessageCount);
 ThreadPool subtaskThreadPool(clientSubtaskCount);
 ThreadPool surplusThreadsForClients(leftoverThreadCount/2);
-
-void log(const std::string& message) 
-{
-  std::scoped_lock<std::mutex> lock(logMutex);
-  std::cout << message << std::endl;
-  logFile << message << std::endl;
-}
-
-int generateUniqueId() 
-{
-  static std::atomic<int> idCounter(1);
-  int id = idCounter++;
-  log("Generated unique ID: " + std::to_string(id));
-  return id;
-}
 
 void update_player_state(GameState& game_state, SOCKET socket, const PlayerState& state) 
 {
@@ -1431,7 +1413,10 @@ int main()
 #ifdef _WIN32
   WSACleanup();
 #endif
-  logFile.close();
+
+  // Close the logger
+  Logger::getInstance().close();
+
   return 0;
 }
 

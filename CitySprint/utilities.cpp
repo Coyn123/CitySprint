@@ -1,13 +1,21 @@
+#include "utilities.h"
+#include "logger.h"
 #include <iostream>
 #include <string>
-#include <fstream>
 #include <openssl/sha.h>
+#include <atomic>
 
-#include "misc_lib.h"
+void log(const std::string& message) {
+  Logger::getInstance().log(message);
+}
 
-#pragma comment(lib, "ws2_32.lib")
+int generateUniqueId() {
+  static std::atomic<int> idCounter(1);
+  int id = idCounter++;
+  log("Generated unique ID: " + std::to_string(id));
+  return id;
+}
 
-// Function to encode WebSocket frames
 std::string encodeWebSocketFrame(const std::string& message) {
   std::string frame;
   frame.push_back(0x81); // Text frame
@@ -62,7 +70,6 @@ std::string decodeWebSocketFrame(const std::string& frame) {
   return decoded;
 }
 
-// Base64 encoding function
 std::string base64Encode(const unsigned char* input, int length) {
   static const char base64Chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
   std::string encoded;
@@ -76,7 +83,6 @@ std::string base64Encode(const unsigned char* input, int length) {
   return encoded;
 }
 
-// Generate WebSocket accept key
 std::string generateWebSocketAcceptKey(const std::string& key) {
   std::string acceptKey = key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
   unsigned char hash[SHA_DIGEST_LENGTH];
@@ -86,9 +92,9 @@ std::string generateWebSocketAcceptKey(const std::string& key) {
 
 double squareRoot(int initialNum) {
   double numCopy = static_cast<double>(initialNum);
- 
+
   if (numCopy < 2)
-    numCopy;
+    return numCopy;
 
   double z = (numCopy + (initialNum / numCopy)) / 2;
 

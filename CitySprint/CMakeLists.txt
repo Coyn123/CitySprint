@@ -8,7 +8,7 @@ set(CMAKE_CXX_STANDARD 17)
 include_directories(${CMAKE_SOURCE_DIR}/include)
 
 # Create our executable
-add_executable(CitySprint "game_server.cpp" "misc_lib.cpp")
+add_executable(CitySprint "game_server.cpp" "logger.cpp" "utilities.cpp")
 
 if (WIN32)
     set(CMAKE_SYSTEM_NAME Windows)
